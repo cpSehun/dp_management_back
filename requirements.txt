@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard] # 개발용 ASGI 서버 (Gunicorn은 프로덕션용)
+gunicorn          # 프로덕션용 ASGI 서버
+sqlalchemy
+pymysql           # MySQL 드라이버
+python-dotenv     # .env 파일 관리
+passlib[bcrypt]   # 비밀번호 해싱
+bcrypt==3.2.0     # bcrypt 버전 명시 (passlib 호환성 문제 해결 시도)
+python-jose[cryptography] # JWT 처리 (인증용)
+alembic           # 데이터베이스 마이그레이션 (선택 사항이지만 권장)
+pydantic[email]   # 이메일 유효성 검사를 위한 의존성 추가
+Authlib           # OAuth 클라이언트 라이브러리
+httpx             # Authlib이 사용하는 HTTP 클라이언트 라이브러리 추가
+itsdangerous      # Starlette의 SessionMiddleware가 사용하는 라이브러리 추가

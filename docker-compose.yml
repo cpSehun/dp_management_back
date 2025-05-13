@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dp_management_backend_dev
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # 소스 코드 변경 시 즉시 반영 (핫 리로딩)
+      - .:/app
+      - /app/__pycache__
+    networks:
+      - dp_network
+
+networks:
+  dp_network:
+    external: true
