@@ -45,6 +45,7 @@ logs/
 # 임시 파일
 .DS_Store
 Thumbs.db
+*.png
 
 # 테스트 커버리지
 .coverage
