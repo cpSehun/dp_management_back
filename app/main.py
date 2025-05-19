@@ -50,6 +50,7 @@ app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
 from app.routers import users # 상대 경로를 절대 경로로 변경
 from app.routers import auth  # 상대 경로를 절대 경로로 변경
 from app.routers import oauth_google # 상대 경로를 절대 경로로 변경
+from app.routers import image_generator # 이미지 생성 라우터 추가
 
 # API V1 경로 설정을 위한 부모 라우터 (선택 사항이지만 권장)
 # from fastapi import APIRouter
@@ -61,6 +62,7 @@ from app.routers import oauth_google # 상대 경로를 절대 경로로 변경
 app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(oauth_google.router, prefix="/api/v1/auth/google", tags=["OAuth - Google"])
+app.include_router(image_generator.router, prefix="/api/v1/image-generator", tags=["Image Generator"])
 
 # 루트 엔드포인트 (기본 테스트용)
 @app.get("/")
