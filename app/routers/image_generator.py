@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Query
 from fastapi.responses import JSONResponse, FileResponse
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
@@ -10,7 +10,11 @@ from pathlib import Path
 import uuid
 import time
 from app.database import get_db
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+# 이미지 생성기 모듈 임포트
+from app.image_generators.factory import ImageGeneratorFactory
+from app.image_generators.base import OUTPUT_DIR
 
 # 로깅 설정
 logger = logging.getLogger(__name__)
@@ -51,13 +55,15 @@ except Exception as e:
 # Pydantic 모델 정의
 class ImageRequest(BaseModel):
     prompt: str
-    steps: int
-    batch_size: int
+    steps: int = 40
+    batch_size: int = 1
     negative_prompt: Optional[str] = None
     width: Optional[int] = 1024
     height: Optional[int] = 1024
     guidance: Optional[float] = 3.5
     seed: Optional[int] = None
+    model: Optional[str] = "flux-dev"  # 기본값은 flux-dev
+    save_to_backend: Optional[bool] = True  # 백엔드에 이미지 저장 여부
 
 class ImageResponse(BaseModel):
     job_id: str
@@ -338,6 +344,16 @@ async def download_comfyui_images(job_id: str, results: Dict):
     
     return saved_images
 
+# 모델 목록 엔드포인트
+@router.get("/models", response_model=List[Dict[str, str]])
+async def list_models():
+    """사용 가능한 이미지 생성 모델 목록 반환"""
+    try:
+        return ImageGeneratorFactory.list_generators()
+    except Exception as e:
+        logger.error(f"모델 목록 가져오기 오류: {e}")
+        raise HTTPException(status_code=500, detail=f"모델 목록을 가져올 수 없습니다: {str(e)}")
+
 # 이미지 생성 API 엔드포인트
 @router.post("/generate", response_model=Dict[str, Any])
 async def generate_image(
@@ -345,54 +361,23 @@ async def generate_image(
     db: Session = Depends(get_db)
 ):
     try:
-        # 워크플로우 로드 및 수정
-        workflow_data = load_workflow()
-        modified_workflow = modify_workflow(workflow_data, request)
+        # 요청된 모델에 맞는 생성기 가져오기
+        model_name = request.model
+        generator = ImageGeneratorFactory.get_generator(model_name)
         
-        # ComfyUI로 워크플로우 전송
-        response = await send_workflow_to_comfyui(modified_workflow)
-        
-        if not response:
+        if not generator:
             return {
                 "success": False,
-                "error": "이미지 생성 요청이 실패했습니다"
+                "error": f"지원하지 않는 모델입니다: {model_name}"
             }
         
-        # job_id 가져오기
-        job_id = str(uuid.uuid4())
-        if "prompt_id" in response:
-            job_id = response["prompt_id"]
-            logger.info(f"작업 ID: {job_id}")
+        # 요청 데이터 준비
+        request_data = request.dict()
         
-        # 이미지 생성 완료 대기
-        results = await wait_for_job_completion(job_id)
+        # 이미지 생성 요청
+        result = await generator.generate(request_data)
         
-        if not results:
-            return {
-                "success": False,
-                "error": "이미지 생성 시간이 초과되었습니다"
-            }
-        
-        # 이미지 다운로드 및 저장
-        images = await download_comfyui_images(job_id, results)
-        
-        if not images:
-            return {
-                "success": False,
-                "error": "이미지를 다운로드할 수 없습니다"
-            }
-        
-        # 디버깅을 위해 이미지 JSON 정보 로깅 - DEBUG 레벨로 변경
-        logger.debug(f"반환되는 이미지 정보: {json.dumps(images, ensure_ascii=False)}")
-        
-        # 성공 응답 반환
-        logger.info(f"이미지 생성 완료: {len(images)}개")
-        return {
-            "success": True,
-            "job_id": job_id,
-            "images": images,
-            "message": "이미지 생성이 완료되었습니다"
-        }
+        return result
         
     except Exception as e:
         logger.error(f"이미지 생성 오류: {e}")
@@ -421,35 +406,46 @@ async def get_generated_image(filename: str):
 
 # 이미지 생성 상태 확인 API 엔드포인트
 @router.get("/status/{job_id}", response_model=Dict[str, Any])
-async def check_image_status(job_id: str):
+async def check_image_status(
+    job_id: str,
+    model: Optional[str] = Query(None, description="이미지 생성에 사용된 모델명")
+):
     try:
-        # ComfyUI API에서 작업 상태 확인
-        url = get_comfyui_endpoint(f"api/history/{job_id}")
-        response = requests.get(url)
-        
-        if response.status_code == 200:
-            result = response.json()
-            # API 응답에서 작업 객체 가져오기 (응답이 {job_id: {...}} 형태)
-            job_result = result.get(job_id, {})
+        # 모델이 지정되지 않은 경우 모든 모델에서 확인
+        if not model:
+            # 사용 가능한 모든 생성기에서 작업 확인
+            for generator_info in ImageGeneratorFactory.list_generators():
+                generator_name = generator_info["name"]
+                generator = ImageGeneratorFactory.get_generator(generator_name)
+                
+                if not generator:
+                    continue
+                
+                result = await generator.get_status(job_id)
+                
+                # 작업을 찾았으면 해당 결과 반환
+                if result.get("status") != "not_found":
+                    return result
             
-            if not job_result:
-                return {
-                    "job_id": job_id,
-                    "status": "not_found",
-                    "message": "작업을 찾을 수 없습니다"
-                }
-            
+            # 모든 생성기에서 작업을 찾지 못한 경우
             return {
                 "job_id": job_id,
-                "status": "completed" if "outputs" in job_result and job_result["outputs"] else "processing",
-                "result": job_result
+                "status": "not_found",
+                "message": "작업을 찾을 수 없습니다"
             }
-        else:
+        
+        # 모델이 지정된 경우 해당 모델에서만 확인
+        generator = ImageGeneratorFactory.get_generator(model)
+        
+        if not generator:
             return {
                 "job_id": job_id,
                 "status": "error",
-                "message": f"작업 상태를 가져올 수 없습니다: {response.text}"
+                "message": f"지원하지 않는 모델입니다: {model}"
             }
+        
+        return await generator.get_status(job_id)
+        
     except Exception as e:
         logger.error(f"작업 상태 확인 중 오류 발생: {e}")
         return {
@@ -491,3 +487,71 @@ async def list_images():
     except Exception as e:
         logger.error(f"이미지 목록 가져오기 중 오류 발생: {e}")
         raise HTTPException(status_code=500, detail=f"이미지 목록 가져오기 중 오류: {str(e)}")
+
+# 이미지 저장 API 엔드포인트 추가
+@router.post("/save", response_model=Dict[str, Any])
+async def save_images(
+    request: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    try:
+        images = request.get("images", [])
+        prompt = request.get("prompt", "")
+        model = request.get("model", "")
+        
+        if not images:
+            return {
+                "success": False,
+                "error": "저장할 이미지가 없습니다."
+            }
+        
+        # 이미지 저장 처리
+        saved_images = []
+        for image in images:
+            try:
+                # 원본 URL에서 이미지 다운로드
+                image_url = image.get("original_url") or image.get("url")
+                if not image_url:
+                    logger.warning(f"이미지 URL이 없습니다: {image}")
+                    continue
+                
+                # 파일명 생성
+                filename = f"saved_{uuid.uuid4()}.png"
+                filepath = OUTPUT_DIR / filename
+                
+                # 이미지 다운로드 및 저장
+                response = requests.get(image_url, stream=True)
+                if response.status_code == 200:
+                    # 디렉토리 확인
+                    if not filepath.parent.exists():
+                        filepath.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    # 파일 저장
+                    with open(filepath, 'wb') as f:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            f.write(chunk)
+                    
+                    saved_images.append({
+                        "url": f"/api/v1/image-generator/outputs/{filename}",
+                        "filename": filename,
+                        "original_url": image_url
+                    })
+                    
+                    logger.info(f"이미지 저장 완료: {filename}")
+                else:
+                    logger.error(f"이미지 다운로드 실패: {response.status_code}")
+            except Exception as e:
+                logger.error(f"이미지 저장 중 오류: {e}")
+        
+        return {
+            "success": True,
+            "saved_images": saved_images,
+            "count": len(saved_images)
+        }
+        
+    except Exception as e:
+        logger.error(f"이미지 저장 API 오류: {e}")
+        return {
+            "success": False,
+            "error": f"이미지 저장 중 오류가 발생했습니다: {str(e)}"
+        }
