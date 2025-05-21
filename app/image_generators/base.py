@@ -5,25 +5,14 @@
 """
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
-from pathlib import Path
-import os
-import logging
 import uuid
+# from pathlib import Path # Path 임포트는 더 이상 필요 없음
+import logging
 
 # 로깅 설정
 logger = logging.getLogger(__name__)
 
-# 기본 출력 디렉토리 설정
-BASE_DIR = Path(__file__).resolve().parent.parent.parent
-OUTPUT_DIR = Path('/app/output')
-
-# 출력 디렉토리가 없으면 생성
-if not OUTPUT_DIR.exists():
-    try:
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        logger.info(f"출력 디렉토리 생성 완료: {OUTPUT_DIR}")
-    except Exception as e:
-        logger.error(f"출력 디렉토리 생성 실패: {e}")
+# OUTPUT_DIR = Path(__file__).resolve().parent.parent / 'output' # 더 이상 사용하지 않음
 
 class ImageGenerator(ABC):
     """
@@ -36,8 +25,11 @@ class ImageGenerator(ABC):
     
     def __init__(self):
         """이미지 생성기 초기화"""
-        self.output_dir = OUTPUT_DIR
-        
+        # self.output_dir = OUTPUT_DIR # 이 줄을 제거하거나 주석 처리
+        # if not self.output_dir.exists(): # 관련 디렉토리 생성 로직도 제거
+        #     self.output_dir.mkdir(parents=True, exist_ok=True)
+        pass
+    
     @abstractmethod
     async def generate(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -85,20 +77,21 @@ class ImageGenerator(ABC):
         """
         return str(uuid.uuid4())
     
-    def prepare_output_path(self, filename: str) -> Path:
-        """
-        출력 파일 경로 준비
-        
-        Args:
-            filename: 파일명
-            
-        Returns:
-            Path: 준비된 출력 파일 경로
-        """
-        filepath = self.output_dir / filename
-        
-        # 디렉토리 확인
-        if not filepath.parent.exists():
-            filepath.parent.mkdir(parents=True, exist_ok=True)
-            
-        return filepath 
+    # prepare_output_path 메소드 삭제
+    # def prepare_output_path(self, filename: str) -> Path:
+    #     """
+    #     출력 파일 경로 준비
+    #     
+    #     Args:
+    #         filename: 파일명
+    #         
+    #     Returns:
+    #         Path: 준비된 출력 파일 경로
+    #     """
+    #     filepath = self.output_dir / filename
+    #     
+    #     # 디렉토리 확인
+    #     if not filepath.parent.exists():
+    #         filepath.parent.mkdir(parents=True, exist_ok=True)
+    #         
+    #     return filepath 

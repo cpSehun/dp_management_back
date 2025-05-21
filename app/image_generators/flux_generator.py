@@ -24,17 +24,17 @@ class FluxGenerator(ImageGenerator):
         """Flux 이미지 생성기 초기화"""
         super().__init__()
         
-        # 작업 디렉토리 설정
+        # 작업 디렉토리 설정 (워크플로우 파일 로드에 필요)
         self.base_dir = Path(__file__).resolve().parent.parent.parent
-        self.workflow_file = self.base_dir / 'flux1-dev.json'
-        self.api_file = self.base_dir / 'flux1-dev-api.json'
+        self.workflow_file = self.base_dir / 'flux1-dev.json' # 이 파일이 실제로 사용되는지 확인 필요
+        self.api_file = self.base_dir / 'flux1-dev-api.json' # 워크플로우 API 정의 파일
         
         # ComfyUI 서버 설정
         self.comfyui_server = os.getenv("COMFYUI_SERVER", "http://192.168.0.151:8188")
         
         # 로깅
-        logger.info(f"Flux Generator 초기화: {self.base_dir}")
-        logger.info(f"ComfyUI 서버: {self.comfyui_server}")
+        logger.info(f"Flux Generator 초기화 완료. ComfyUI 서버: {self.comfyui_server}")
+        # self.output_dir 관련 로깅 및 설정 제거
     
     def get_comfyui_endpoint(self, path: str) -> str:
         """
@@ -214,91 +214,71 @@ class FluxGenerator(ImageGenerator):
         logger.warning(f"최대 대기 시간 초과(2분): {job_id}")
         return None
     
-    async def download_comfyui_images(self, job_id: str, results: Dict, save_to_backend: bool = True) -> List[Dict]:
+    async def download_comfyui_images(self, job_id: str, results: Dict) -> List[Dict]:
         """
-        ComfyUI에서 생성된 이미지를 다운로드하여 저장
+        ComfyUI에서 생성된 이미지 정보를 반환 (로컬 저장 안 함)
         
         Args:
             job_id: 작업 ID
             results: 작업 결과 데이터
-            save_to_backend: 이미지를 백엔드에 저장할지 여부
             
         Returns:
-            List[Dict]: 저장된 이미지 정보 목록
+            List[Dict]: ComfyUI 원본 이미지 정보 목록 (URL 포함)
         """
-        saved_images = []
+        returned_images = []
         
         try:
             if not results:
-                logger.error(f"결과가 없습니다")
-                return saved_images
+                logger.error(f"결과가 없습니다: {job_id}")
+                return returned_images
             
-            # 워크플로우 정보에서 노드 이름 정보 추출 (있는 경우)
             node_types = {}
             if "prompt" in results and isinstance(results["prompt"], list) and len(results["prompt"]) > 2:
                 workflow = results["prompt"][2]
                 for node_id, node_info in workflow.items():
                     if isinstance(node_info, dict) and "class_type" in node_info:
                         node_types[node_id] = node_info.get("class_type", "Unknown")
-                        # _meta 정보에서 title이 있으면 그것을 사용
                         if "_meta" in node_info and "title" in node_info["_meta"]:
                             node_types[node_id] = node_info["_meta"]["title"]
-            
-            # DEBUG 레벨로 변경하여 일반 로그에는 표시되지 않도록 함
             logger.debug(f"워크플로우에서 추출한 노드 타입 정보: {node_types}")
             
-            # ComfyUI API에서는 outputs 필드 확인
+            outputs = {}
             if "outputs" in results:
                 outputs = results["outputs"]
-                # DEBUG 레벨로 변경
                 logger.debug(f"outputs 필드 사용: {outputs}")
             else:
-                logger.info(f"outputs 필드 없음, API 재호출")
-                # API 재호출하여 최신 정보 가져오기
+                logger.info(f"outputs 필드 없음, API 재호출: {job_id}")
                 url = self.get_comfyui_endpoint(f"api/history/{job_id}")
                 response = requests.get(url)
                 if response.status_code == 200:
                     new_results = response.json()
                     job_result = new_results.get(job_id, {})
                     
-                    # 워크플로우 정보 추출 시도
                     if "prompt" in job_result and isinstance(job_result["prompt"], list) and len(job_result["prompt"]) > 2:
                         workflow = job_result["prompt"][2]
                         for node_id, node_info in workflow.items():
                             if isinstance(node_info, dict) and "class_type" in node_info:
                                 node_types[node_id] = node_info.get("class_type", "Unknown")
-                                # _meta 정보에서 title이 있으면 그것을 사용
                                 if "_meta" in node_info and "title" in node_info["_meta"]:
                                     node_types[node_id] = node_info["_meta"]["title"]
-                    
-                    # DEBUG 레벨로 변경
-                    logger.debug(f"API 재호출로 추출한 노드 타입 정보: {node_types}")
+                        logger.debug(f"API 재호출로 추출한 노드 타입 정보: {node_types}")
                     
                     if "outputs" in job_result:
                         outputs = job_result["outputs"]
-                        # DEBUG 레벨로 변경
                         logger.debug(f"API 재호출 결과 outputs: {outputs}")
                     else:
-                        # outputs 필드가 없으면 빈 목록 반환
-                        logger.error("outputs 필드를 찾을 수 없어 이미지를 가져올 수 없습니다")
-                        return saved_images
+                        logger.error(f"outputs 필드를 찾을 수 없어 이미지를 가져올 수 없습니다: {job_id}")
+                        return returned_images
                 else:
-                    logger.error(f"API 재호출 실패: {response.status_code}")
-                    return saved_images
+                    logger.error(f"API 재호출 실패: {response.status_code} - {job_id}")
+                    return returned_images
             
-            # 각 출력 노드에서 이미지 찾기
             for node_id, node_output in outputs.items():
                 if "images" in node_output:
-                    images = node_output["images"]
-                    # DEBUG 레벨로 변경
-                    logger.debug(f"노드 {node_id}의 이미지: {images}")
+                    images_data = node_output["images"]
+                    logger.debug(f"노드 {node_id}의 이미지 데이터: {images_data}")
                     
-                    # 노드 타입 정보 가져오기 (이제 불필요하지만 로깅을 위해 유지)
-                    node_type = node_types.get(node_id, "SaveImage")
-                    
-                    # 각 이미지 다운로드 및 저장
-                    for i, img_data in enumerate(images):
-                        # ComfyUI에서 반환된 파일명, subfolder, type 정보 사용
+                    for i, img_data in enumerate(images_data):
                         comfy_filename = img_data.get("filename", "")
                         comfy_subfolder = img_data.get("subfolder", "")
                         comfy_type = img_data.get("type", "output")
@@ -307,67 +287,25 @@ class FluxGenerator(ImageGenerator):
                             logger.warning(f"이미지 데이터에 filename이 없습니다: {img_data}")
                             continue
                         
-                        # ComfyUI에서 이미지 URL 생성 (정확한 파일명과 타입 사용)
                         img_url = self.get_comfyui_endpoint(f"view?filename={comfy_filename}&subfolder={comfy_subfolder}&type={comfy_type}")
-                        logger.debug(f"이미지 다운로드 URL: {img_url}")
+                        logger.debug(f"ComfyUI 원본 이미지 URL: {img_url}")
                         
-                        # 백엔드에 저장하지 않는 경우, ComfyUI URL을 직접 반환
-                        if not save_to_backend:
-                            saved_images.append({
-                                "url": img_url,  # ComfyUI 서버의 URL 직접 사용
-                                "filename": f"generated_image_{job_id}_{i}.png",
-                                "original_url": img_url
-                            })
-                            logger.info(f"이미지 URL 추가 (저장하지 않음): {i+1}/{len(images)} - {img_url}")
-                            continue
-                        
-                        # 백엔드에 저장하는 경우
-                        # 로컬에 저장할 파일명 설정
-                        filename = f"{job_id}_{i}.png"
-                        filepath = self.output_dir / filename
-                        
-                        # 경로 확인 로깅 - DEBUG 레벨로 변경
-                        logger.debug(f"저장 파일 경로: {filepath} (존재: {filepath.parent.exists()})")
-                        
-                        try:
-                            # 이미지 다운로드 및 저장
-                            response = requests.get(img_url, stream=True)
-                            if response.status_code == 200:
-                                # 파일 크기 확인 - DEBUG 레벨로 변경
-                                content_length = int(response.headers.get('content-length', 0))
-                                logger.debug(f"이미지 크기: {content_length} 바이트")
-                                
-                                # 디렉토리 확인
-                                if not filepath.parent.exists():
-                                    filepath.parent.mkdir(parents=True, exist_ok=True)
-                                    logger.info(f"부모 디렉토리 생성: {filepath.parent}")
-                                
-                                # 파일 저장
-                                with open(filepath, 'wb') as f:
-                                    for chunk in response.iter_content(chunk_size=8192):
-                                        f.write(chunk)
-                                
-                                # 파일 확인
-                                if filepath.exists():
-                                    filesize = filepath.stat().st_size
-                                    logger.info(f"이미지 저장 완료: {i+1}/{len(images)} - {filepath.name}")
-                                    
-                                    saved_images.append({
-                                        "url": f"/api/v1/image-generator/outputs/{filename}",
-                                        "filename": f"generated_image_{filename}",
-                                        "original_url": img_url  # 원본 ComfyUI URL도 추가
-                                    })
-                                else:
-                                    logger.error(f"파일이 저장되지 않음: {filepath}")
-                            else:
-                                logger.error(f"이미지 다운로드 실패: {response.status_code} - URL: {img_url}")
-                        except Exception as e:
-                            logger.error(f"이미지 저장 중 오류: {e}, 파일 경로: {filepath}")
+                        returned_images.append({
+                            # "url" 필드는 이제 original_url과 동일하게 ComfyUI 직접 URL을 가리킴
+                            "url": img_url, 
+                            "filename": comfy_filename, # ComfyUI가 제공하는 파일명
+                            "original_url": img_url,
+                            "node_id": node_id,
+                            "node_type": node_types.get(node_id, "Unknown"),
+                            "subfolder": comfy_subfolder,
+                            "type": comfy_type
+                        })
+                        logger.info(f"ComfyUI 이미지 정보 추가: {i+1}/{len(images_data)} - {comfy_filename}")
         
         except Exception as e:
-            logger.error(f"이미지 다운로드 중 오류: {e}")
+            logger.error(f"ComfyUI 이미지 정보 처리 중 오류: {e}, job_id: {job_id}")
         
-        return saved_images
+        return returned_images
     
     async def generate(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -380,14 +318,12 @@ class FluxGenerator(ImageGenerator):
             Dict[str, Any]: 생성된 이미지 정보를 포함한 응답
         """
         try:
-            # 백엔드 저장 여부 확인
-            save_to_backend = request_data.get("save_to_backend", True)
-            
-            # 워크플로우 로드 및 수정
+            # save_to_backend 파라미터 관련 로직 제거
+            # logger.info(f"요청 데이터 (save_to_backend 생략): {request_data}")
+
             workflow_data = self.load_workflow()
             modified_workflow = self.modify_workflow(workflow_data, request_data)
             
-            # ComfyUI로 워크플로우 전송
             response = await self.send_workflow_to_comfyui(modified_workflow)
             
             if not response:
@@ -411,8 +347,8 @@ class FluxGenerator(ImageGenerator):
                     "error": "이미지 생성 시간이 초과되었습니다"
                 }
             
-            # 이미지 다운로드 및 저장 (save_to_backend 파라미터 전달)
-            images = await self.download_comfyui_images(job_id, results, save_to_backend)
+            # 이미지 다운로드 및 저장 (save_to_backend 파라미터 전달 부분 삭제)
+            images = await self.download_comfyui_images(job_id, results)
             
             if not images:
                 return {
