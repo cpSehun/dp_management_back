@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float, Table
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -49,3 +49,72 @@ class GeneratedImage(Base):
     user = relationship("User", back_populates="generated_images")
 
 # 여기에 다른 모델(예: Prompt) 추가 가능
+
+# 프롬프트와 태그 간의 다대다 관계를 위한 연결 테이블 (선택적)
+# prompt_tag_association = Table(
+#     'prompt_tag_association', Base.metadata,
+#     Column('prompt_id', Integer, ForeignKey('image_prompts.id'), primary_key=True),
+#     Column('tag_id', Integer, ForeignKey('tags.id'), primary_key=True)
+# )
+
+class ImagePrompt(Base):
+    __tablename__ = "image_prompts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), index=True, nullable=False)
+    description = Column(Text, nullable=True)
+    tags = Column(Text, nullable=True) # 예: "tag1,tag2,tag3" 또는 JSON 문자열
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # created_by = Column(Integer, ForeignKey("users.id"), nullable=True) 
+
+    versions = relationship("ImagePromptVersion", back_populates="prompt", cascade="all, delete-orphan")
+
+class ImagePromptVersion(Base):
+    __tablename__ = "image_prompt_versions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    prompt_id = Column(Integer, ForeignKey("image_prompts.id"), nullable=False)
+    
+    content = Column(Text, nullable=False)
+    is_active = Column(Boolean, default=False, nullable=False)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    prompt = relationship("ImagePrompt", back_populates="versions")
+
+# (선택적) Tag 모델
+# class Tag(Base):
+#     __tablename__ = "tags"
+#     id = Column(Integer, primary_key=True, index=True)
+#     name = Column(String(100), unique=True, index=True, nullable=False)
+
+class PersonaPrompt(Base):
+    __tablename__ = "persona_prompts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), index=True, nullable=False)
+    description = Column(Text, nullable=True)
+    tags = Column(Text, nullable=True) # 예: "tag1,tag2,tag3" 또는 JSON 문자열
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    versions = relationship("PersonaPromptVersion", back_populates="prompt", cascade="all, delete-orphan")
+
+class PersonaPromptVersion(Base):
+    __tablename__ = "persona_prompt_versions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    prompt_id = Column(Integer, ForeignKey("persona_prompts.id"), nullable=False) # ForeignKey 변경
+    
+    content = Column(Text, nullable=False)
+    is_active = Column(Boolean, default=False, nullable=False)
+    
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    prompt = relationship("PersonaPrompt", back_populates="versions")

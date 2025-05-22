@@ -23,7 +23,11 @@ load_dotenv()
 models.Base.metadata.create_all(bind=engine)
 
 # FastAPI 앱 인스턴스 생성
-app = FastAPI(title="DP Management API", version="0.1.0")
+app = FastAPI(
+    title="DP Management API",
+    description="API for managing DP tasks, including image generation and prompt management.",
+    version="0.1.0",
+)
 
 # -------- CORS 미들웨어 추가 --------
 origins = [
@@ -51,6 +55,8 @@ from app.routers import users # 상대 경로를 절대 경로로 변경
 from app.routers import auth  # 상대 경로를 절대 경로로 변경
 from app.routers import oauth_google # 상대 경로를 절대 경로로 변경
 from app.routers import image_generator # 이미지 생성 라우터 추가
+from app.routers import image_prompt # 새로 추가한 라우터
+from app.routers import persona_prompt # persona_prompt 추가
 
 # API V1 경로 설정을 위한 부모 라우터 (선택 사항이지만 권장)
 # from fastapi import APIRouter
@@ -63,6 +69,8 @@ app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(oauth_google.router, prefix="/api/v1/auth/google", tags=["OAuth - Google"])
 app.include_router(image_generator.router, prefix="/api/v1/image-generator", tags=["Image Generator"])
+app.include_router(image_prompt.router)
+app.include_router(persona_prompt.router) # persona_prompt 라우터 등록
 
 # 루트 엔드포인트 (기본 테스트용)
 @app.get("/")
@@ -94,3 +102,9 @@ def test_db_connection(db: Session = Depends(get_db)):
 # app.include_router(prompts.router)
 
 # 참고: 실제 애플리케이션에서는 models.py, schemas.py, crud.py, routers/ 등을 구현해야 합니다.
+
+# 이벤트 핸들러를 사용하여 애플리케이션 시작 시 DB 테이블 생성
+# @app.on_event("startup")
+# def on_startup():
+    # pass # Alembic을 사용한다면 이 부분을 비워두거나 로깅 등을 할 수 있습니다.
+    # models.Base.metadata.create_all(bind=engine) # Alembic 사용 안 할 시 테이블 생성

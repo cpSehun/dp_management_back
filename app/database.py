@@ -35,6 +35,7 @@ SQLALCHEMY_DATABASE_URL = f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL
 # connect_args는 MySQL 연결 시 타임존 관련 경고를 피하기 위해 추가 (선택 사항)
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
+    pool_recycle=1800, # 1800초 (30분) 마다 커넥션 재활용
     # connect_args={"check_same_thread": False} # SQLite 사용 시 필요
 )
 

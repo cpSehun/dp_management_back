@@ -1,6 +1,8 @@
 from pydantic import BaseModel, EmailStr, Field, HttpUrl
 from typing import Optional, List
 from datetime import datetime
+# from pydantic import validator # Pydantic V1
+from pydantic import field_validator # computed_field는 이제 사용 안 함
 
 # 공통 속성을 위한 기본 스키마
 class UserBase(BaseModel):
@@ -57,7 +59,8 @@ class GeneratedImageResponse(GeneratedImageBase):
     updated_at: Optional[datetime] = None
 
     class Config:
-        orm_mode = True
+        # orm_mode = True # Pydantic V1
+        from_attributes = True # Pydantic V2
 
 # /generate 엔드포인트 응답 내 이미지 정보
 class GeneratedImageInfo(BaseModel):
@@ -95,3 +98,107 @@ class ImageRequest(BaseModel):
     guidance: Optional[float] = 3.5
     seed: Optional[int] = None
     model: Optional[str] = "flux-dev" # 기본값은 flux-dev 
+
+# --- ImagePromptVersion Schemas (기존 PromptVersion Schemas에서 이름 변경) ---
+class ImagePromptVersionBase(BaseModel): # PromptVersionBase -> ImagePromptVersionBase
+    content: str
+    is_active: bool = False
+
+class ImagePromptVersionCreate(ImagePromptVersionBase): # PromptVersionCreate -> ImagePromptVersionCreate
+    pass
+
+class ImagePromptVersionUpdate(BaseModel): # PromptVersionUpdate -> ImagePromptVersionUpdate
+    content: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class ImagePromptVersionInDB(ImagePromptVersionBase): # PromptVersionInDB -> ImagePromptVersionInDB
+    id: int
+    prompt_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# --- ImagePrompt Schemas (참조 스키마명 변경) ---
+class ImagePromptBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+class ImagePromptCreate(ImagePromptBase):
+    versions: List[ImagePromptVersionCreate] # PromptVersionCreate -> ImagePromptVersionCreate
+
+class ImagePromptUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+class ImagePromptInDB(ImagePromptBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    versions: List[ImagePromptVersionInDB] = [] # PromptVersionInDB -> ImagePromptVersionInDB
+    tags: Optional[List[str]] = []
+
+    class Config:
+        from_attributes = True
+
+class ImagePromptResponse(ImagePromptInDB):
+    pass
+
+class PaginatedImagePromptsResponse(BaseModel):
+    total_items: int
+    items: List[ImagePromptResponse]
+    # page: Optional[int] = None # 필요시 현재 페이지 번호
+    # limit: Optional[int] = None # 필요시 페이지당 아이템 수 
+
+# --- PersonaPromptVersion Schemas (Similar to PromptVersion) ---
+class PersonaPromptVersionBase(BaseModel):
+    content: str
+    is_active: bool = False
+
+class PersonaPromptVersionCreate(PersonaPromptVersionBase):
+    pass
+
+class PersonaPromptVersionUpdate(BaseModel):
+    content: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class PersonaPromptVersionInDB(PersonaPromptVersionBase):
+    id: int
+    prompt_id: int # This will be PersonaPrompt.id
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# --- PersonaPrompt Schemas (Similar to ImagePrompt) ---
+class PersonaPromptBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+class PersonaPromptCreate(PersonaPromptBase):
+    versions: List[PersonaPromptVersionCreate] # PersonaPromptVersionCreate 사용
+
+class PersonaPromptUpdate(BaseModel): # ImagePromptUpdate처럼 필요한 필드만 정의
+    name: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+class PersonaPromptInDB(PersonaPromptBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+    versions: List[PersonaPromptVersionInDB] = [] # PersonaPromptVersionInDB 사용
+    tags: Optional[List[str]] = [] 
+
+    class Config:
+        from_attributes = True
+
+class PersonaPromptResponse(PersonaPromptInDB):
+    pass
+
+class PaginatedPersonaPromptsResponse(BaseModel):
+    total_items: int
+    items: List[PersonaPromptResponse] 
