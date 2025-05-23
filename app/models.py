@@ -21,6 +21,8 @@ class User(Base):
 
     # 관계 설정
     generated_images = relationship("GeneratedImage", back_populates="user")
+    image_prompts = relationship("ImagePrompt", back_populates="created_by_user")  # 새로운 관계 추가
+    persona_prompts = relationship("PersonaPrompt", back_populates="created_by_user")  # 새로운 관계 추가
 
 class GeneratedImage(Base):
     """
@@ -61,28 +63,29 @@ class ImagePrompt(Base):
     __tablename__ = "image_prompts"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), index=True, nullable=False)
-    description = Column(Text, nullable=True)
-    tags = Column(Text, nullable=True) # 예: "tag1,tag2,tag3" 또는 JSON 문자열
-
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    name = Column(String(255), index=True, nullable=False)  # 프롬프트 이름
+    image_prompt = Column(Text, nullable=False)  # 이미지 생성 프롬프트 내용 (description에서 변경)
+    tags = Column(Text, nullable=True)  # 태그 (쉼표로 구분된 문자열)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # 생성자 ID
+    created_at = Column(DateTime(timezone=True), server_default=func.now())  # 생성 일시
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())  # 수정 일시
     
-    # created_by = Column(Integer, ForeignKey("users.id"), nullable=True) 
-
+    # 관계 설정
     versions = relationship("ImagePromptVersion", back_populates="prompt", cascade="all, delete-orphan")
+    created_by_user = relationship("User", back_populates="image_prompts")  # User와의 관계 설정
 
 class ImagePromptVersion(Base):
     __tablename__ = "image_prompt_versions"
 
     id = Column(Integer, primary_key=True, index=True)
-    prompt_id = Column(Integer, ForeignKey("image_prompts.id"), nullable=False)
-    
-    content = Column(Text, nullable=False)
-    is_active = Column(Boolean, default=False, nullable=False)
-    
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    prompt_id = Column(Integer, ForeignKey("image_prompts.id"), nullable=False)  # 프롬프트 ID
+    version = Column(Integer, nullable=False)  # 버전 번호
+    content = Column(Text, nullable=False)  # 프롬프트 내용
+    is_active = Column(Boolean, default=False, nullable=False)  # 활성 버전 여부
+    created_at = Column(DateTime(timezone=True), server_default=func.now())  # 생성 일시
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # 생성자 ID
 
+    # 관계 설정
     prompt = relationship("ImagePrompt", back_populates="versions")
 
 # (선택적) Tag 모델
@@ -95,26 +98,27 @@ class PersonaPrompt(Base):
     __tablename__ = "persona_prompts"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), index=True, nullable=False)
-    description = Column(Text, nullable=True)
-    tags = Column(Text, nullable=True) # 예: "tag1,tag2,tag3" 또는 JSON 문자열
-
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    name = Column(String(255), index=True, nullable=False)  # 프롬프트 이름
+    llm_prompt = Column(Text, nullable=False)  # 페르소나 프롬프트 내용 (description에서 변경)
+    tags = Column(Text, nullable=True)  # 태그 (쉼표로 구분된 문자열)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # 생성자 ID
+    created_at = Column(DateTime(timezone=True), server_default=func.now())  # 생성 일시
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())  # 수정 일시
     
-    # created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-
+    # 관계 설정
     versions = relationship("PersonaPromptVersion", back_populates="prompt", cascade="all, delete-orphan")
+    created_by_user = relationship("User", back_populates="persona_prompts")  # User와의 관계 설정
 
 class PersonaPromptVersion(Base):
     __tablename__ = "persona_prompt_versions"
 
     id = Column(Integer, primary_key=True, index=True)
-    prompt_id = Column(Integer, ForeignKey("persona_prompts.id"), nullable=False) # ForeignKey 변경
-    
-    content = Column(Text, nullable=False)
-    is_active = Column(Boolean, default=False, nullable=False)
-    
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    prompt_id = Column(Integer, ForeignKey("persona_prompts.id"), nullable=False)  # 프롬프트 ID
+    version = Column(Integer, nullable=False)  # 버전 번호
+    content = Column(Text, nullable=False)  # 프롬프트 내용
+    is_active = Column(Boolean, default=False, nullable=False)  # 활성 버전 여부
+    created_at = Column(DateTime(timezone=True), server_default=func.now())  # 생성 일시
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # 생성자 ID
 
+    # 관계 설정
     prompt = relationship("PersonaPrompt", back_populates="versions")

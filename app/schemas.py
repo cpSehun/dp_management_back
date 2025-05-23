@@ -99,45 +99,48 @@ class ImageRequest(BaseModel):
     seed: Optional[int] = None
     model: Optional[str] = "flux-dev" # 기본값은 flux-dev 
 
-# --- ImagePromptVersion Schemas (기존 PromptVersion Schemas에서 이름 변경) ---
-class ImagePromptVersionBase(BaseModel): # PromptVersionBase -> ImagePromptVersionBase
+# --- ImagePromptVersion Schemas ---
+class ImagePromptVersionBase(BaseModel):
     content: str
     is_active: bool = False
 
-class ImagePromptVersionCreate(ImagePromptVersionBase): # PromptVersionCreate -> ImagePromptVersionCreate
+class ImagePromptVersionCreate(ImagePromptVersionBase):
     pass
 
-class ImagePromptVersionUpdate(BaseModel): # PromptVersionUpdate -> ImagePromptVersionUpdate
+class ImagePromptVersionUpdate(BaseModel):
     content: Optional[str] = None
     is_active: Optional[bool] = None
 
-class ImagePromptVersionInDB(ImagePromptVersionBase): # PromptVersionInDB -> ImagePromptVersionInDB
+class ImagePromptVersionInDB(ImagePromptVersionBase):
     id: int
     prompt_id: int
+    version: int  # 추가된 필드
     created_at: datetime
+    created_by: Optional[int] = None  # 추가된 필드
 
     class Config:
         from_attributes = True
 
-# --- ImagePrompt Schemas (참조 스키마명 변경) ---
+# --- ImagePrompt Schemas ---
 class ImagePromptBase(BaseModel):
     name: str
-    description: Optional[str] = None
+    image_prompt: str  # description에서 변경
     tags: Optional[List[str]] = None
 
 class ImagePromptCreate(ImagePromptBase):
-    versions: List[ImagePromptVersionCreate] # PromptVersionCreate -> ImagePromptVersionCreate
+    versions: List[ImagePromptVersionCreate]
 
 class ImagePromptUpdate(BaseModel):
     name: Optional[str] = None
-    description: Optional[str] = None
+    image_prompt: Optional[str] = None  # description에서 변경
     tags: Optional[List[str]] = None
 
 class ImagePromptInDB(ImagePromptBase):
     id: int
     created_at: datetime
     updated_at: datetime
-    versions: List[ImagePromptVersionInDB] = [] # PromptVersionInDB -> ImagePromptVersionInDB
+    created_by: Optional[int] = None  # 추가된 필드
+    versions: List[ImagePromptVersionInDB] = []
     tags: Optional[List[str]] = []
 
     class Config:
@@ -149,10 +152,8 @@ class ImagePromptResponse(ImagePromptInDB):
 class PaginatedImagePromptsResponse(BaseModel):
     total_items: int
     items: List[ImagePromptResponse]
-    # page: Optional[int] = None # 필요시 현재 페이지 번호
-    # limit: Optional[int] = None # 필요시 페이지당 아이템 수 
 
-# --- PersonaPromptVersion Schemas (Similar to PromptVersion) ---
+# --- PersonaPromptVersion Schemas ---
 class PersonaPromptVersionBase(BaseModel):
     content: str
     is_active: bool = False
@@ -166,32 +167,35 @@ class PersonaPromptVersionUpdate(BaseModel):
 
 class PersonaPromptVersionInDB(PersonaPromptVersionBase):
     id: int
-    prompt_id: int # This will be PersonaPrompt.id
+    prompt_id: int
+    version: int  # 추가된 필드
     created_at: datetime
+    created_by: Optional[int] = None  # 추가된 필드
 
     class Config:
         from_attributes = True
 
-# --- PersonaPrompt Schemas (Similar to ImagePrompt) ---
+# --- PersonaPrompt Schemas ---
 class PersonaPromptBase(BaseModel):
     name: str
-    description: Optional[str] = None
+    llm_prompt: str  # description에서 변경
     tags: Optional[List[str]] = None
 
 class PersonaPromptCreate(PersonaPromptBase):
-    versions: List[PersonaPromptVersionCreate] # PersonaPromptVersionCreate 사용
+    versions: List[PersonaPromptVersionCreate]
 
-class PersonaPromptUpdate(BaseModel): # ImagePromptUpdate처럼 필요한 필드만 정의
+class PersonaPromptUpdate(BaseModel):
     name: Optional[str] = None
-    description: Optional[str] = None
+    llm_prompt: Optional[str] = None  # description에서 변경
     tags: Optional[List[str]] = None
 
 class PersonaPromptInDB(PersonaPromptBase):
     id: int
     created_at: datetime
     updated_at: datetime
-    versions: List[PersonaPromptVersionInDB] = [] # PersonaPromptVersionInDB 사용
-    tags: Optional[List[str]] = [] 
+    created_by: Optional[int] = None  # 추가된 필드
+    versions: List[PersonaPromptVersionInDB] = []
+    tags: Optional[List[str]] = []
 
     class Config:
         from_attributes = True

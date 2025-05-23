@@ -34,19 +34,15 @@ def create_new_persona_prompt(
     print(f"Backend: Persona prompt creation request received for URL: {request.url.path}")
     print(f"Backend: Persona prompt request body: {prompt_in.model_dump_json(indent=2)}")
 
-    # Tags 처리: crud 함수에서 처리하도록 변경
-    # if isinstance(prompt_in.tags, list):
-    #     prompt_in.tags = ",".join(prompt_in.tags)
-    # elif prompt_in.tags is None:
-    #     prompt_in.tags = None 
-
-    # 첫 번째 버전을 필수로 활성화 (스키마에서 처리 권장)
+    # 첫 번째 버전을 필수로 활성화
     if not prompt_in.versions:
         raise HTTPException(status_code=400, detail="At least one version is required.")
     if not any(v.is_active for v in prompt_in.versions):
         prompt_in.versions[0].is_active = True
 
-    new_prompt = crud.create_persona_prompt(db=db, prompt_in=prompt_in)
+    # 사용자 ID를 전달하여 created_by 필드 설정
+    new_prompt = crud.create_persona_prompt(db=db, prompt_in=prompt_in, user_id=current_user.id)
+    
     # 태그를 문자열에서 리스트로 변환
     return _convert_orm_tags_to_list(new_prompt)
 
@@ -76,15 +72,25 @@ async def read_single_persona_prompt(prompt_id: int, db: Session = Depends(get_d
 async def update_single_persona_prompt(
     prompt_id: int, 
     prompt_update_data: schemas.PersonaPromptUpdate, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
 ):
-    updated_prompt_orm = crud.update_persona_prompt(db, prompt_id=prompt_id, prompt_update_data=prompt_update_data)
+    updated_prompt_orm = crud.update_persona_prompt(
+        db, 
+        prompt_id=prompt_id, 
+        prompt_update_data=prompt_update_data,
+        user_id=current_user.id
+    )
     if updated_prompt_orm is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Persona prompt not found")
     return _convert_orm_tags_to_list(updated_prompt_orm)
 
 @router.delete("/{prompt_id}", response_model=schemas.PersonaPromptResponse)
-async def delete_single_persona_prompt(prompt_id: int, db: Session = Depends(get_db)):
+async def delete_single_persona_prompt(
+    prompt_id: int, 
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
+):
     deleted_prompt_orm = crud.delete_persona_prompt(db, prompt_id=prompt_id)
     if deleted_prompt_orm is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Persona prompt not found")
@@ -95,20 +101,28 @@ async def delete_single_persona_prompt(prompt_id: int, db: Session = Depends(get
 async def add_new_version_to_persona_prompt(
     prompt_id: int,
     version_data: schemas.PersonaPromptVersionCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
 ):
     db_prompt_check = crud.get_persona_prompt(db, prompt_id=prompt_id)
     if not db_prompt_check:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Persona prompt not found to add version.")
     
-    new_version = crud.create_persona_prompt_version(db=db, prompt_id=prompt_id, version_data=version_data)
+    # 사용자 ID를 전달하여 created_by 필드 설정
+    new_version = crud.create_persona_prompt_version(
+        db=db, 
+        prompt_id=prompt_id, 
+        version_data=version_data,
+        user_id=current_user.id
+    )
     return new_version
 
 @router.put("/{prompt_id}/versions/{version_id}/activate", response_model=schemas.PersonaPromptResponse)
 async def activate_persona_prompt_version(
     prompt_id: int,
     version_id: int,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_active_user)
 ):
     updated_prompt_orm = crud.set_active_persona_version(db=db, prompt_id=prompt_id, version_id=version_id)
     if not updated_prompt_orm:
