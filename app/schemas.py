@@ -1,8 +1,6 @@
 from pydantic import BaseModel, EmailStr, Field, HttpUrl
 from typing import Optional, List
 from datetime import datetime
-# from pydantic import validator # Pydantic V1
-from pydantic import field_validator # computed_field는 이제 사용 안 함
 
 # 공통 속성을 위한 기본 스키마
 class UserBase(BaseModel):
@@ -23,9 +21,9 @@ class User(UserBase):
     updated_at: Optional[datetime] = None
 
     class Config:
-        from_attributes = True  # Pydantic v2 스타일
+        from_attributes = True
 
-# 로그인 요청 스키마 (추후 로그인 기능 구현 시 사용)
+# 로그인 요청 스키마
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -59,8 +57,7 @@ class GeneratedImageResponse(GeneratedImageBase):
     updated_at: Optional[datetime] = None
 
     class Config:
-        # orm_mode = True # Pydantic V1
-        from_attributes = True # Pydantic V2
+        from_attributes = True
 
 # /generate 엔드포인트 응답 내 이미지 정보
 class GeneratedImageInfo(BaseModel):
@@ -75,10 +72,6 @@ class GeneratedImageInfo(BaseModel):
     guidance: Optional[float] = None
     seed: Optional[int] = None
     model: Optional[str] = None
-    
-    # 사용자가 이미지 저장 시 이름을 설정할 수 있도록 원본 요청 정보 전달
-    # 프론트엔드에서 이 정보를 사용하여 'GeneratedImageCreate' 요청을 구성할 수 있음
-
 
 # /generate 엔드포인트 전체 응답
 class GenerateApiResponse(BaseModel):
@@ -87,7 +80,7 @@ class GenerateApiResponse(BaseModel):
     generated_images: List[GeneratedImageInfo] = []
     error: Optional[str] = None
 
-# ImageRequest 모델 (기존 image_generator.py 에서 가져와 save_to_backend 필드 제거)
+# ImageRequest 모델
 class ImageRequest(BaseModel):
     prompt: str
     steps: int = 40
@@ -97,26 +90,24 @@ class ImageRequest(BaseModel):
     height: Optional[int] = 1024
     guidance: Optional[float] = 3.5
     seed: Optional[int] = None
-    model: Optional[str] = "flux-dev" # 기본값은 flux-dev 
+    model: Optional[str] = "flux-dev"
 
 # --- ImagePromptVersion Schemas ---
 class ImagePromptVersionBase(BaseModel):
-    content: str
-    is_active: bool = False
+    llm_prompt: str
 
 class ImagePromptVersionCreate(ImagePromptVersionBase):
     pass
 
 class ImagePromptVersionUpdate(BaseModel):
-    content: Optional[str] = None
-    is_active: Optional[bool] = None
+    llm_prompt: Optional[str] = None
 
 class ImagePromptVersionInDB(ImagePromptVersionBase):
     id: int
     prompt_id: int
-    version: int  # 추가된 필드
+    version: int
     created_at: datetime
-    created_by: Optional[int] = None  # 추가된 필드
+    created_by: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -124,24 +115,22 @@ class ImagePromptVersionInDB(ImagePromptVersionBase):
 # --- ImagePrompt Schemas ---
 class ImagePromptBase(BaseModel):
     name: str
-    image_prompt: str  # description에서 변경
-    tags: Optional[List[str]] = None
+    llm_prompt: str
 
 class ImagePromptCreate(ImagePromptBase):
-    versions: List[ImagePromptVersionCreate]
+    pass
 
 class ImagePromptUpdate(BaseModel):
     name: Optional[str] = None
-    image_prompt: Optional[str] = None  # description에서 변경
-    tags: Optional[List[str]] = None
+    llm_prompt: Optional[str] = None
 
 class ImagePromptInDB(ImagePromptBase):
     id: int
+    version: int
     created_at: datetime
     updated_at: datetime
-    created_by: Optional[int] = None  # 추가된 필드
+    created_by: Optional[int] = None
     versions: List[ImagePromptVersionInDB] = []
-    tags: Optional[List[str]] = []
 
     class Config:
         from_attributes = True
@@ -155,22 +144,20 @@ class PaginatedImagePromptsResponse(BaseModel):
 
 # --- PersonaPromptVersion Schemas ---
 class PersonaPromptVersionBase(BaseModel):
-    content: str
-    is_active: bool = False
+    llm_prompt: str
 
 class PersonaPromptVersionCreate(PersonaPromptVersionBase):
     pass
 
 class PersonaPromptVersionUpdate(BaseModel):
-    content: Optional[str] = None
-    is_active: Optional[bool] = None
+    llm_prompt: Optional[str] = None
 
 class PersonaPromptVersionInDB(PersonaPromptVersionBase):
     id: int
     prompt_id: int
-    version: int  # 추가된 필드
+    version: int
     created_at: datetime
-    created_by: Optional[int] = None  # 추가된 필드
+    created_by: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -178,24 +165,22 @@ class PersonaPromptVersionInDB(PersonaPromptVersionBase):
 # --- PersonaPrompt Schemas ---
 class PersonaPromptBase(BaseModel):
     name: str
-    llm_prompt: str  # description에서 변경
-    tags: Optional[List[str]] = None
+    llm_prompt: str
 
 class PersonaPromptCreate(PersonaPromptBase):
-    versions: List[PersonaPromptVersionCreate]
+    pass
 
 class PersonaPromptUpdate(BaseModel):
     name: Optional[str] = None
-    llm_prompt: Optional[str] = None  # description에서 변경
-    tags: Optional[List[str]] = None
+    llm_prompt: Optional[str] = None
 
 class PersonaPromptInDB(PersonaPromptBase):
     id: int
+    version: int
     created_at: datetime
     updated_at: datetime
-    created_by: Optional[int] = None  # 추가된 필드
+    created_by: Optional[int] = None
     versions: List[PersonaPromptVersionInDB] = []
-    tags: Optional[List[str]] = []
 
     class Config:
         from_attributes = True
@@ -205,4 +190,4 @@ class PersonaPromptResponse(PersonaPromptInDB):
 
 class PaginatedPersonaPromptsResponse(BaseModel):
     total_items: int
-    items: List[PersonaPromptResponse] 
+    items: List[PersonaPromptResponse]
