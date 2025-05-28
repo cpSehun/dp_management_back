@@ -35,50 +35,33 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
+# --- GeneratedImage Schemas (새로 추가) ---
 class GeneratedImageBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=255, description="이미지 이름")
-    prompt: Optional[str] = Field(None, description="이미지 생성에 사용된 프롬프트")
-    negative_prompt: Optional[str] = Field(None, description="네거티브 프롬프트")
-    model: Optional[str] = Field(None, description="사용된 모델")
-    s3_url: HttpUrl = Field(..., description="S3에 저장된 이미지 URL")
-    width: Optional[int] = Field(None, description="이미지 가로 크기")
-    height: Optional[int] = Field(None, description="이미지 세로 크기")
-    steps: Optional[int] = Field(None, description="생성 스텝 수")
-    guidance: Optional[float] = Field(None, description="가이던스 값")
-    seed: Optional[int] = Field(None, description="시드 값")
-    user_id: Optional[int] = Field(None, description="생성한 사용자 ID (해당되는 경우)")
+    prompt: str = Field(..., description="이미지 생성에 사용된 프롬프트")
+    model: str = Field(..., description="사용된 모델")
+    s3_url: str = Field(..., description="S3에 저장된 이미지 URL")
+    tags: Optional[str] = Field(None, description="태그 (쉼표로 구분)")
+    steps: Optional[int] = Field(None, description="생성 스텝 수 (flux-dev만)")
+    seed: Optional[int] = Field(None, description="시드 값 (flux-dev만)")
 
 class GeneratedImageCreate(GeneratedImageBase):
     pass
 
-class GeneratedImageResponse(GeneratedImageBase):
+class GeneratedImageInDB(GeneratedImageBase):
     id: int
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    created_by: Optional[str] = None  # username으로 변환되어 전달
 
     class Config:
         from_attributes = True
 
-# /generate 엔드포인트 응답 내 이미지 정보
-class GeneratedImageInfo(BaseModel):
-    s3_url: HttpUrl = Field(..., description="S3에 업로드된 이미지의 URL")
-    original_filename: Optional[str] = Field(None, description="ComfyUI에서 생성된 원본 파일명")
-    prompt: str
-    steps: int
-    batch_size: int
-    negative_prompt: Optional[str] = None
-    width: Optional[int] = None
-    height: Optional[int] = None
-    guidance: Optional[float] = None
-    seed: Optional[int] = None
-    model: Optional[str] = None
+class GeneratedImageResponse(GeneratedImageInDB):
+    pass
 
-# /generate 엔드포인트 전체 응답
-class GenerateApiResponse(BaseModel):
-    success: bool
-    message: Optional[str] = None
-    generated_images: List[GeneratedImageInfo] = []
-    error: Optional[str] = None
+class PaginatedGeneratedImagesResponse(BaseModel):
+    total_items: int
+    items: List[GeneratedImageResponse]
 
 # ImageRequest 모델
 class ImageRequest(BaseModel):

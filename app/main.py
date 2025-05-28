@@ -57,6 +57,7 @@ from app.routers import oauth_google # 상대 경로를 절대 경로로 변경
 from app.routers import image_generator # 이미지 생성 라우터 추가
 from app.routers import image_prompt # 새로 추가한 라우터
 from app.routers import persona_prompt # persona_prompt 추가
+from app.routers import generated_images # 이미지 생성 라우터 추가<e
 
 # API V1 경로 설정을 위한 부모 라우터 (선택 사항이지만 권장)
 # from fastapi import APIRouter
@@ -71,6 +72,7 @@ app.include_router(oauth_google.router, prefix="/api/v1/auth/google", tags=["OAu
 app.include_router(image_generator.router, prefix="/api/v1/image-generator", tags=["Image Generator"])
 app.include_router(image_prompt.router)
 app.include_router(persona_prompt.router) # persona_prompt 라우터 등록
+app.include_router(generated_images.router) # 생성된 이미지 라우터 등록
 
 # 루트 엔드포인트 (기본 테스트용)
 @app.get("/")

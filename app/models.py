@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float, BigInteger
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship, declarative_mixin, declared_attr
 from app.database import Base
@@ -19,35 +19,29 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # 관계 설정
+    # 관계 설정 - 기존 이름 사용
     generated_images = relationship("GeneratedImage", back_populates="user")
     image_prompts = relationship("ImagePrompt", back_populates="created_by_user")
     persona_prompts = relationship("PersonaPrompt", back_populates="created_by_user")
 
 class GeneratedImage(Base):
     """
-    생성된 이미지 정보를 저장하는 SQLAlchemy 모델
+    생성된 이미지 정보를 저장하는 SQLAlchemy 모델 (ImagePrompt 참고하여 재설계)
     """
     __tablename__ = "generated_images"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    name = Column(String(255), nullable=False)
-    prompt = Column(Text, nullable=True)
-    negative_prompt = Column(Text, nullable=True)
-    model = Column(String(100), nullable=True)
-    s3_url = Column(String(1024), nullable=False)
-    width = Column(Integer, nullable=True)
-    height = Column(Integer, nullable=True)
-    steps = Column(Integer, nullable=True)
-    guidance = Column(Float, nullable=True)
-    seed = Column(Integer, nullable=True)
-    
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    
+    name = Column(String(255), nullable=False, index=True)  # 이미지 이름
+    prompt = Column(Text, nullable=False)  # 생성 프롬프트
+    model = Column(String(100), nullable=False)  # 사용 모델 (flux-dev, gpt-image-1 등)
+    s3_url = Column(String(1024), nullable=False)  # S3 저장 URL
+    tags = Column(Text, nullable=True)  # 태그 (쉼표로 구분된 문자열)
+    steps = Column(Integer, nullable=True)  # 생성 스텝 (flux-dev만 해당)
+    seed = Column(BigInteger, nullable=True)  # 시드값 (BigInteger로 변경 - 큰 수 지원)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    # 관계 설정
+    # 관계 설정 - 기존 이름 사용
     user = relationship("User", back_populates="generated_images")
 
 class ImagePrompt(Base):

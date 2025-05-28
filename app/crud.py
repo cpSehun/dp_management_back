@@ -38,6 +38,76 @@ def authenticate_user(db: Session, username: str, password: str):
         return None
     return user
 
+# --- GeneratedImage CRUD (새로 추가) ---
+
+def get_generated_image(db: Session, image_id: int) -> Optional[models.GeneratedImage]:
+    """생성된 이미지 단건 조회 - 사용자 정보 포함"""
+    return db.query(models.GeneratedImage).options(
+        joinedload(models.GeneratedImage.user)  # created_by_user에서 user로 변경
+    ).filter(models.GeneratedImage.id == image_id).first()
+
+def get_generated_images(db: Session, skip: int = 0, limit: int = 100, search_term: Optional[str] = None) -> List[models.GeneratedImage]:
+    """생성된 이미지 목록 조회 - 사용자 정보 포함"""
+    query = db.query(models.GeneratedImage).options(
+        joinedload(models.GeneratedImage.user)  # created_by_user에서 user로 변경
+    )
+    
+    if search_term:
+        search_filter = f"%{search_term}%"
+        query = query.filter(
+            or_(
+                models.GeneratedImage.name.ilike(search_filter),
+                models.GeneratedImage.prompt.ilike(search_filter),
+                models.GeneratedImage.model.ilike(search_filter),
+                models.GeneratedImage.tags.ilike(search_filter)
+            )
+        )
+    
+    return query.order_by(desc(models.GeneratedImage.created_at)).offset(skip).limit(limit).all()
+
+def get_generated_images_count(db: Session, search_term: Optional[str] = None) -> int:
+    """생성된 이미지 총 개수"""
+    query = db.query(models.GeneratedImage)
+    
+    if search_term:
+        search_filter = f"%{search_term}%"
+        query = query.filter(
+            or_(
+                models.GeneratedImage.name.ilike(search_filter),
+                models.GeneratedImage.prompt.ilike(search_filter),
+                models.GeneratedImage.model.ilike(search_filter),
+                models.GeneratedImage.tags.ilike(search_filter)
+            )
+        )
+    
+    return query.count()
+
+def create_generated_image(db: Session, image_in: schemas.GeneratedImageCreate, user_id: Optional[int] = None) -> models.GeneratedImage:
+    """새 생성 이미지 저장"""
+    db_image = models.GeneratedImage(
+        name=image_in.name,
+        prompt=image_in.prompt,
+        model=image_in.model,
+        s3_url=image_in.s3_url,
+        tags=image_in.tags,
+        steps=image_in.steps if image_in.model == "flux-dev" else None,  # flux-dev만 저장
+        seed=image_in.seed if image_in.model == "flux-dev" else None,    # flux-dev만 저장
+        created_by=user_id,
+    )
+    db.add(db_image)
+    db.commit()
+    db.refresh(db_image)
+    return db_image
+
+def delete_generated_image(db: Session, image_id: int) -> Optional[models.GeneratedImage]:
+    """생성된 이미지 삭제"""
+    db_image = db.query(models.GeneratedImage).filter(models.GeneratedImage.id == image_id).first()
+    if db_image:
+        db.delete(db_image)
+        db.commit()
+        return db_image
+    return None
+
 # --- ImagePrompt CRUD ---
 
 def get_image_prompt(db: Session, prompt_id: int) -> Optional[models.ImagePrompt]:
