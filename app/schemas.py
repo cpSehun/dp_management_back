@@ -107,7 +107,7 @@ class ImagePromptVersionInDB(ImagePromptVersionBase):
     prompt_id: int
     version: int
     created_at: datetime
-    created_by: Optional[int] = None
+    created_by: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -129,7 +129,7 @@ class ImagePromptInDB(ImagePromptBase):
     version: int
     created_at: datetime
     updated_at: datetime
-    created_by: Optional[int] = None
+    created_by: Optional[str] = None
     versions: List[ImagePromptVersionInDB] = []
 
     class Config:
@@ -157,7 +157,7 @@ class PersonaPromptVersionInDB(PersonaPromptVersionBase):
     prompt_id: int
     version: int
     created_at: datetime
-    created_by: Optional[int] = None
+    created_by: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -179,7 +179,7 @@ class PersonaPromptInDB(PersonaPromptBase):
     version: int
     created_at: datetime
     updated_at: datetime
-    created_by: Optional[int] = None
+    created_by: Optional[str] = None
     versions: List[PersonaPromptVersionInDB] = []
 
     class Config:

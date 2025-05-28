@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from app import models, schemas, security
 from typing import List, Optional
 from sqlalchemy import or_, desc
@@ -41,12 +41,20 @@ def authenticate_user(db: Session, username: str, password: str):
 # --- ImagePrompt CRUD ---
 
 def get_image_prompt(db: Session, prompt_id: int) -> Optional[models.ImagePrompt]:
-    """현재 활성 프롬프트 조회"""
-    return db.query(models.ImagePrompt).filter(models.ImagePrompt.id == prompt_id).first()
+    """현재 활성 프롬프트 조회 - 사용자 정보 포함"""
+    from sqlalchemy.orm import selectinload
+    return db.query(models.ImagePrompt).options(
+        joinedload(models.ImagePrompt.created_by_user),
+        selectinload(models.ImagePrompt.versions).joinedload(models.ImagePromptVersion.created_by_user)
+    ).filter(models.ImagePrompt.id == prompt_id).first()
 
 def get_image_prompts(db: Session, skip: int = 0, limit: int = 100, search_term: Optional[str] = None) -> List[models.ImagePrompt]:
     """현재 활성 프롬프트 목록 조회 (prompts 테이블에서)"""
-    query = db.query(models.ImagePrompt)
+    from sqlalchemy.orm import selectinload
+    query = db.query(models.ImagePrompt).options(
+        joinedload(models.ImagePrompt.created_by_user),
+        selectinload(models.ImagePrompt.versions).joinedload(models.ImagePromptVersion.created_by_user)
+    )
     if search_term:
         search_filter = f"%{search_term}%"
         query = query.filter(
@@ -119,8 +127,13 @@ def update_image_prompt(db: Session, prompt_id: int, prompt_in: schemas.ImagePro
         )
         db.add(backup_version)
 
-    # 2. 새 버전 번호 계산
-    next_version = db_prompt.version + 1
+    # 2. 모든 버전 중 가장 높은 버전 번호 찾기 (현재 활성 버전이 아닌 전체 최대값)
+    max_version = db.query(func.max(models.ImagePromptVersion.version)).filter(
+        models.ImagePromptVersion.prompt_id == prompt_id
+    ).scalar() or 0
+    
+    # prompts 테이블의 현재 버전과 비교해서 더 큰 값 사용
+    next_version = max(max_version, db_prompt.version) + 1
 
     # 3. prompts 테이블 업데이트
     update_data = prompt_in.model_dump(exclude_unset=True)
@@ -187,11 +200,19 @@ def rollback_image_prompt(db: Session, prompt_id: int, target_version: int, user
 # --- PersonaPrompt CRUD (동일한 로직) ---
 
 def get_persona_prompt(db: Session, prompt_id: int) -> Optional[models.PersonaPrompt]:
-    return db.query(models.PersonaPrompt).filter(models.PersonaPrompt.id == prompt_id).first()
+    from sqlalchemy.orm import selectinload
+    return db.query(models.PersonaPrompt).options(
+        joinedload(models.PersonaPrompt.created_by_user),
+        selectinload(models.PersonaPrompt.versions).joinedload(models.PersonaPromptVersion.created_by_user)
+    ).filter(models.PersonaPrompt.id == prompt_id).first()
 
 def get_persona_prompts(db: Session, skip: int = 0, limit: int = 100, search_term: Optional[str] = None) -> List[models.PersonaPrompt]:
-    """현재 활성 프롬프트 목록 조회 (prompts 테이블에서)"""
-    query = db.query(models.PersonaPrompt)
+    """현재 활성 프롬프트 목록 조회 - 사용자 정보 포함"""
+    from sqlalchemy.orm import selectinload
+    query = db.query(models.PersonaPrompt).options(
+        joinedload(models.PersonaPrompt.created_by_user),
+        selectinload(models.PersonaPrompt.versions).joinedload(models.PersonaPromptVersion.created_by_user)
+    )
     if search_term:
         search_filter = f"%{search_term}%"
         query = query.filter(
@@ -258,8 +279,14 @@ def update_persona_prompt(db: Session, prompt_id: int, prompt_in: schemas.Person
         )
         db.add(backup_version)
 
-    next_version = db_prompt.version + 1
-
+    # 모든 버전 중 가장 높은 버전 번호 찾기
+    max_version = db.query(func.max(models.PersonaPromptVersion.version)).filter(
+        models.PersonaPromptVersion.prompt_id == prompt_id
+    ).scalar() or 0
+    
+    next_version = max(max_version, db_prompt.version) + 1
+    
+    # prompts 테이블 업데이트
     update_data = prompt_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(db_prompt, field, value)
@@ -267,6 +294,7 @@ def update_persona_prompt(db: Session, prompt_id: int, prompt_in: schemas.Person
     db_prompt.version = next_version
     db_prompt.updated_at = func.now()
 
+    # 새 버전을 prompt_versions에 저장
     new_version = models.PersonaPromptVersion(
         prompt_id=db_prompt.id,
         version=next_version,

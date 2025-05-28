@@ -77,7 +77,7 @@ class ImagePromptVersion(Base):
 
     # 관계 설정
     prompt = relationship("ImagePrompt", back_populates="versions")
-
+    created_by_user = relationship("User", foreign_keys=[created_by])  # 수정: foreign_keys 명시
     
 class PersonaPrompt(Base):
     __tablename__ = "persona_prompts"
@@ -107,3 +107,4 @@ class PersonaPromptVersion(Base):
 
     # 관계 설정
     prompt = relationship("PersonaPrompt", back_populates="versions")
+    created_by_user = relationship("User", foreign_keys=[created_by])  # 수정: foreign_keys 명시

@@ -11,6 +11,35 @@ router = APIRouter(
     tags=["Image Prompts"],
 )
 
+def convert_prompt_response(db_prompt):
+    """프롬프트 응답 변환 헬퍼 함수"""
+    if not db_prompt:
+        return None
+        
+    # 메인 프롬프트의 created_by 변환 (현재 버전 생성자로)
+    current_version = None
+    for version in db_prompt.versions:
+        if version.version == db_prompt.version:
+            current_version = version
+            break
+    
+    # 현재 활성 버전의 생성자를 메인 created_by로 설정
+    if current_version and current_version.created_by_user:
+        db_prompt.created_by = current_version.created_by_user.username
+    elif db_prompt.created_by_user:
+        db_prompt.created_by = db_prompt.created_by_user.username
+    else:
+        db_prompt.created_by = None
+        
+    # 각 버전의 created_by 변환
+    for version in db_prompt.versions:
+        if hasattr(version, 'created_by_user') and version.created_by_user:
+            version.created_by = version.created_by_user.username
+        else:
+            version.created_by = None
+    
+    return db_prompt
+
 @router.post("", response_model=schemas.ImagePromptResponse, status_code=status.HTTP_201_CREATED)
 def create_new_image_prompt(
     request: Request,
@@ -21,9 +50,11 @@ def create_new_image_prompt(
     print(f"Backend: Image prompt creation request received for URL: {request.url.path}")
     print(f"Backend: Image prompt request body: {prompt_in.model_dump_json(indent=2)}")
 
-    # 새 프롬프트 생성 (v1으로 자동 시작)
     new_prompt = crud.create_image_prompt(db=db, prompt_in=prompt_in, user_id=current_user.id)
-    return new_prompt
+    db_prompt_with_user = crud.get_image_prompt(db, prompt_id=new_prompt.id)
+    
+    converted_prompt = convert_prompt_response(db_prompt_with_user)
+    return converted_prompt
 
 @router.get("", response_model=schemas.PaginatedImagePromptsResponse)
 async def read_all_image_prompts(
@@ -36,9 +67,16 @@ async def read_all_image_prompts(
     prompts_from_db = crud.get_image_prompts(db, skip=skip, limit=limit, search_term=search)
     total_items = crud.get_image_prompts_count(db, search_term=search)
     
+    # 각 프롬프트 변환
+    converted_prompts = []
+    for prompt in prompts_from_db:
+        converted_prompt = convert_prompt_response(prompt)
+        if converted_prompt:
+            converted_prompts.append(converted_prompt)
+    
     return schemas.PaginatedImagePromptsResponse(
         total_items=total_items,
-        items=prompts_from_db  # 직접 반환
+        items=converted_prompts
     )
 
 @router.get("/{prompt_id}", response_model=schemas.ImagePromptResponse)
@@ -46,7 +84,9 @@ async def read_single_image_prompt(prompt_id: int, db: Session = Depends(get_db)
     db_prompt = crud.get_image_prompt(db, prompt_id=prompt_id)
     if db_prompt is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image prompt not found")
-    return db_prompt
+    
+    converted_prompt = convert_prompt_response(db_prompt)
+    return converted_prompt
 
 @router.put("/{prompt_id}", response_model=schemas.ImagePromptResponse)
 async def update_single_image_prompt(
@@ -63,7 +103,11 @@ async def update_single_image_prompt(
     )
     if updated_prompt is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image prompt not found")
-    return updated_prompt
+    
+    db_prompt_with_user = crud.get_image_prompt(db, prompt_id=prompt_id)
+    converted_prompt = convert_prompt_response(db_prompt_with_user)
+    return converted_prompt
+
 
 @router.put("/{prompt_id}/rollback/{version}", response_model=schemas.ImagePromptResponse)
 async def rollback_image_prompt(
@@ -84,7 +128,9 @@ async def rollback_image_prompt(
             status_code=status.HTTP_404_NOT_FOUND, 
             detail="Image prompt or version not found for rollback."
         )
-    return updated_prompt
+    db_prompt_with_user = crud.get_image_prompt(db, prompt_id=prompt_id)
+    converted_prompt = convert_prompt_response(db_prompt_with_user)
+    return converted_prompt
 
 @router.get("/{prompt_id}/versions", response_model=List[schemas.ImagePromptVersionInDB])
 async def get_image_prompt_versions(
@@ -98,4 +144,12 @@ async def get_image_prompt_versions(
     
     # 버전 히스토리를 최신순으로 정렬하여 반환
     versions = sorted(db_prompt.versions, key=lambda x: x.version, reverse=True)
+    
+    # 각 버전의 created_by를 username으로 변환
+    for version in versions:
+        if hasattr(version, 'created_by_user') and version.created_by_user:
+            version.created_by = version.created_by_user.username
+        else:
+            version.created_by = None
+    
     return versions
