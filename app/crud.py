@@ -38,18 +38,99 @@ def authenticate_user(db: Session, username: str, password: str):
         return None
     return user
 
-# --- GeneratedImage CRUD (새로 추가) ---
+# 사용자 활성화/비활성화 함수 추가
+def update_user_status(db: Session, user_id: int, is_active: bool, updated_by_user_id: int) -> Optional[models.User]:
+    """사용자 활성화 상태 변경"""
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        return None
+    
+    db_user.is_active = is_active
+    db_user.updated_at = func.now()
+    db.commit()
+    db.refresh(db_user)
+    
+    # 활성화 시 텔레그램 알림 (선택적)
+    if is_active:
+        from app.utils.telegram import send_user_approval_notification
+        try:
+            send_user_approval_notification(db_user.username, db_user.email)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).error(f"사용자 승인 알림 전송 실패: {e}")
+    
+    return db_user
+
+def update_user_role(db: Session, user_id: int, is_superuser: bool) -> Optional[models.User]:
+    """사용자 권한 변경"""
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        return None
+    
+    db_user.is_superuser = is_superuser
+    db_user.updated_at = func.now()
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+def delete_user(db: Session, user_id: int) -> Optional[models.User]:
+    """
+    사용자 삭제
+    
+    Args:
+        db: 데이터베이스 세션
+        user_id: 삭제할 사용자 ID
+        
+    Returns:
+        Optional[models.User]: 삭제된 사용자 정보 또는 None
+    """
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if db_user:
+        # 관련된 데이터들의 created_by를 NULL로 설정 (데이터 보존)
+        
+        # 생성된 이미지의 created_by를 NULL로 설정
+        db.query(models.GeneratedImage).filter(
+            models.GeneratedImage.created_by == user_id
+        ).update({"created_by": None})
+        
+        # 이미지 프롬프트의 created_by를 NULL로 설정
+        db.query(models.ImagePrompt).filter(
+            models.ImagePrompt.created_by == user_id
+        ).update({"created_by": None})
+        
+        # 이미지 프롬프트 버전의 created_by를 NULL로 설정
+        db.query(models.ImagePromptVersion).filter(
+            models.ImagePromptVersion.created_by == user_id
+        ).update({"created_by": None})
+        
+        # 페르소나 프롬프트의 created_by를 NULL로 설정
+        db.query(models.PersonaPrompt).filter(
+            models.PersonaPrompt.created_by == user_id
+        ).update({"created_by": None})
+        
+        # 페르소나 프롬프트 버전의 created_by를 NULL로 설정
+        db.query(models.PersonaPromptVersion).filter(
+            models.PersonaPromptVersion.created_by == user_id
+        ).update({"created_by": None})
+        
+        # 사용자 삭제
+        db.delete(db_user)
+        db.commit()
+        return db_user
+    return None
+
+# --- GeneratedImage CRUD (기존 코드 유지) ---
 
 def get_generated_image(db: Session, image_id: int) -> Optional[models.GeneratedImage]:
     """생성된 이미지 단건 조회 - 사용자 정보 포함"""
     return db.query(models.GeneratedImage).options(
-        joinedload(models.GeneratedImage.user)  # created_by_user에서 user로 변경
+        joinedload(models.GeneratedImage.user)
     ).filter(models.GeneratedImage.id == image_id).first()
 
 def get_generated_images(db: Session, skip: int = 0, limit: int = 100, search_term: Optional[str] = None) -> List[models.GeneratedImage]:
     """생성된 이미지 목록 조회 - 사용자 정보 포함"""
     query = db.query(models.GeneratedImage).options(
-        joinedload(models.GeneratedImage.user)  # created_by_user에서 user로 변경
+        joinedload(models.GeneratedImage.user)
     )
     
     if search_term:
@@ -90,8 +171,8 @@ def create_generated_image(db: Session, image_in: schemas.GeneratedImageCreate, 
         model=image_in.model,
         s3_url=image_in.s3_url,
         tags=image_in.tags,
-        steps=image_in.steps if image_in.model == "flux-dev" else None,  # flux-dev만 저장
-        seed=image_in.seed if image_in.model == "flux-dev" else None,    # flux-dev만 저장
+        steps=image_in.steps if image_in.model == "flux-dev" else None,
+        seed=image_in.seed if image_in.model == "flux-dev" else None,
         created_by=user_id,
     )
     db.add(db_image)
@@ -108,7 +189,7 @@ def delete_generated_image(db: Session, image_id: int) -> Optional[models.Genera
         return db_image
     return None
 
-# --- ImagePrompt CRUD ---
+# --- ImagePrompt CRUD (기존 코드 유지) ---
 
 def get_image_prompt(db: Session, prompt_id: int) -> Optional[models.ImagePrompt]:
     """현재 활성 프롬프트 조회 - 사용자 정보 포함"""
@@ -134,7 +215,6 @@ def get_image_prompts(db: Session, skip: int = 0, limit: int = 100, search_term:
             )
         )
     return query.order_by(desc(models.ImagePrompt.updated_at)).offset(skip).limit(limit).all()
-
 
 def get_image_prompts_count(db: Session, search_term: Optional[str] = None) -> int:
     """현재 활성 프롬프트 총 개수"""
@@ -197,12 +277,11 @@ def update_image_prompt(db: Session, prompt_id: int, prompt_in: schemas.ImagePro
         )
         db.add(backup_version)
 
-    # 2. 모든 버전 중 가장 높은 버전 번호 찾기 (현재 활성 버전이 아닌 전체 최대값)
+    # 2. 모든 버전 중 가장 높은 버전 번호 찾기
     max_version = db.query(func.max(models.ImagePromptVersion.version)).filter(
         models.ImagePromptVersion.prompt_id == prompt_id
     ).scalar() or 0
     
-    # prompts 테이블의 현재 버전과 비교해서 더 큰 값 사용
     next_version = max(max_version, db_prompt.version) + 1
 
     # 3. prompts 테이블 업데이트
@@ -241,7 +320,7 @@ def rollback_image_prompt(db: Session, prompt_id: int, target_version: int, user
     if not target_version_data:
         return None
 
-    # 2. 현재 prompts 내용을 versions에 백업 (중복 체크)
+    # 2. 현재 prompts 내용을 versions에 백업
     existing_version = db.query(models.ImagePromptVersion).filter(
         models.ImagePromptVersion.prompt_id == prompt_id,
         models.ImagePromptVersion.version == db_prompt.version,
@@ -267,7 +346,7 @@ def rollback_image_prompt(db: Session, prompt_id: int, target_version: int, user
     db.refresh(db_prompt)
     return db_prompt
 
-# --- PersonaPrompt CRUD (동일한 로직) ---
+# --- PersonaPrompt CRUD (기존 코드 유지) ---
 
 def get_persona_prompt(db: Session, prompt_id: int) -> Optional[models.PersonaPrompt]:
     from sqlalchemy.orm import selectinload
@@ -413,38 +492,3 @@ def rollback_persona_prompt(db: Session, prompt_id: int, target_version: int, us
     db.commit()
     db.refresh(db_prompt)
     return db_prompt
-
-
-# 사용자 활성화/비활성화 함수 추가
-def update_user_status(db: Session, user_id: int, is_active: bool, updated_by_user_id: int) -> Optional[models.User]:
-    """사용자 활성화 상태 변경"""
-    db_user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not db_user:
-        return None
-    
-    db_user.is_active = is_active
-    db_user.updated_at = func.now()
-    db.commit()
-    db.refresh(db_user)
-    
-    # 활성화 시 텔레그램 알림 (선택적)
-    if is_active:
-        from app.utils.telegram import send_user_approval_notification
-        try:
-            send_user_approval_notification(db_user.username, db_user.email)
-        except Exception as e:
-            logging.getLogger(__name__).error(f"사용자 승인 알림 전송 실패: {e}")
-    
-    return db_user
-
-def update_user_role(db: Session, user_id: int, is_superuser: bool) -> Optional[models.User]:
-    """사용자 권한 변경"""
-    db_user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not db_user:
-        return None
-    
-    db_user.is_superuser = is_superuser
-    db_user.updated_at = func.now()
-    db.commit()
-    db.refresh(db_user)
-    return db_user

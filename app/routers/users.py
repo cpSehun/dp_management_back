@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -61,6 +61,53 @@ def update_user_role(
     if not updated_user:
         raise HTTPException(status_code=404, detail="User not found")
     return updated_user
+
+# 사용자 삭제 엔드포인트 (최고관리자 전용) - 새로 추가
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_single_user(
+    user_id: int,
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(security.get_current_active_superuser)  # 최고관리자만
+):
+    """
+    사용자 삭제 (최고관리자 전용)
+    
+    Args:
+        user_id: 삭제할 사용자 ID
+        db: 데이터베이스 세션
+        current_user: 현재 로그인한 사용자 (최고관리자 권한 필요)
+        
+    Returns:
+        None (204 No Content)
+        
+    Raises:
+        HTTPException: 권한 없음, 사용자 없음, 본인 계정 삭제 시도 등
+    """
+    # 본인 계정 삭제 방지
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="본인 계정은 삭제할 수 없습니다."
+        )
+    
+    # 삭제할 사용자 존재 확인
+    target_user = crud.get_user(db, user_id=user_id)
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="삭제할 사용자를 찾을 수 없습니다."
+        )
+    
+    # 사용자 삭제 실행
+    deleted_user = crud.delete_user(db, user_id=user_id)
+    if not deleted_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="사용자 삭제에 실패했습니다."
+        )
+    
+    # 204 No Content 응답
+    return None
 
 # 특정 사용자 조회 엔드포인트 (ID 기반) - 반드시 맨 마지막에 위치
 @router.get("/{user_id}", response_model=schemas.User)
