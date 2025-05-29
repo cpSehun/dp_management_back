@@ -413,3 +413,38 @@ def rollback_persona_prompt(db: Session, prompt_id: int, target_version: int, us
     db.commit()
     db.refresh(db_prompt)
     return db_prompt
+
+
+# 사용자 활성화/비활성화 함수 추가
+def update_user_status(db: Session, user_id: int, is_active: bool, updated_by_user_id: int) -> Optional[models.User]:
+    """사용자 활성화 상태 변경"""
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        return None
+    
+    db_user.is_active = is_active
+    db_user.updated_at = func.now()
+    db.commit()
+    db.refresh(db_user)
+    
+    # 활성화 시 텔레그램 알림 (선택적)
+    if is_active:
+        from app.utils.telegram import send_user_approval_notification
+        try:
+            send_user_approval_notification(db_user.username, db_user.email)
+        except Exception as e:
+            logging.getLogger(__name__).error(f"사용자 승인 알림 전송 실패: {e}")
+    
+    return db_user
+
+def update_user_role(db: Session, user_id: int, is_superuser: bool) -> Optional[models.User]:
+    """사용자 권한 변경"""
+    db_user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not db_user:
+        return None
+    
+    db_user.is_superuser = is_superuser
+    db_user.updated_at = func.now()
+    db.commit()
+    db.refresh(db_user)
+    return db_user

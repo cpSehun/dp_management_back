@@ -79,6 +79,18 @@ async def auth_google_callback(request: Request, db: Session = Depends(get_db)):
             full_name=google_name
         )
         db_user = crud.create_user(db, user=user_in)
+        
+        # 텔레그램으로 승인 요청 알림 전송
+        from app.utils.telegram import send_user_approval_request
+        try:
+            send_user_approval_request(
+                username=db_user.username,
+                email=db_user.email,
+                created_at=db_user.created_at
+            )
+        except Exception as e:
+            logger.error(f"텔레그램 알림 전송 실패: {e}")
+            # 알림 실패해도 회원가입은 계속 진행
     
     # 우리 앱의 JWT 생성
     # db_user.username 이 아닌, 실제 User 모델에 있는 username 사용

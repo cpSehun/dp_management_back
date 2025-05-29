@@ -84,33 +84,23 @@ async def read_all_generated_images(
         items=converted_images
     )
 
-@router.get("/{image_id}", response_model=schemas.GeneratedImageResponse)
-async def read_single_generated_image(image_id: int, db: Session = Depends(get_db)):
-    """생성된 이미지 단건 조회"""
-    db_image = crud.get_generated_image(db, image_id=image_id)
-    if db_image is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generated image not found")
-    
-    converted_image = convert_generated_image_response(db_image)
-    return converted_image
-
 @router.delete("/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_generated_image(
     image_id: int, 
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_active_user)
 ):
-    """생성된 이미지 삭제"""
+    """생성된 이미지 삭제 (최고관리자 전용)"""
+    # 최고관리자 권한 체크
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="최고관리자만 이미지를 삭제할 수 있습니다."
+        )
+    
     db_image = crud.get_generated_image(db, image_id=image_id)
     if not db_image:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Generated image not found")
-    
-    # 생성자 본인 또는 관리자만 삭제 가능 (선택적 권한 체크)
-    if db_image.created_by != current_user.id and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, 
-            detail="Not enough permissions to delete this image"
-        )
     
     deleted_image = crud.delete_generated_image(db, image_id=image_id)
     if not deleted_image:
