@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends, Query
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, Response
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 import json
@@ -18,6 +18,10 @@ from app.utils.s3 import upload_file_to_s3, get_s3_client # get_s3_client는 직
 
 # 이미지 생성기 모듈 임포트
 from app.image_generators.factory import ImageGeneratorFactory
+
+# 보안 관련 임포트 추가
+from app.security import get_current_active_user
+from app import models
 
 
 # 로깅 설정
@@ -67,6 +71,11 @@ class S3SaveResponse(BaseModel):
     message: str
     saved_s3_urls: Optional[List[str]] = None
     failed_urls: Optional[List[str]] = None
+
+# 이미지 다운로드 요청 모델
+class ImageDownloadRequest(BaseModel):
+    image_url: str = Field(..., description="다운로드할 이미지 URL")
+
 
 # ComfyUI API 설정
 COMFYUI_SERVER = os.getenv("COMFYUI_SERVER", "http://192.168.0.151:8188")
@@ -553,8 +562,100 @@ async def save_images_to_s3(
             failed_urls=failed_urls
         )
 
-# 이미지 저장 API 엔드포인트 추가 - 삭제
-# @router.post("/save", response_model=Dict[str, Any])
-# async def save_images(
-# ... 기존 save_images 함수 내용 ...
-# 이 함수는 이전 단계에서 삭제되었어야 합니다.
+# 이미지 다운로드 프록시 API 엔드포인트 추가
+@router.post("/download-image")
+async def download_image_proxy(
+    request: ImageDownloadRequest,
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """
+    ComfyUI 이미지를 프록시로 다운로드
+    CORS 문제를 해결하기 위해 백엔드에서 이미지를 가져와서 클라이언트에 전달
+    """
+    try:
+        image_url = request.image_url
+        
+        if not image_url:
+            raise HTTPException(
+                status_code=400, 
+                detail="image_url이 필요합니다."
+            )
+        
+        logger.info(f"이미지 다운로드 요청: {image_url}")
+        
+        # ComfyUI에서 이미지 가져오기 (타임아웃 설정)
+        response = requests.get(
+            image_url, 
+            timeout=30,  # 30초 타임아웃
+            stream=True  # 대용량 이미지를 위한 스트리밍
+        )
+        response.raise_for_status()
+        
+        # Content-Type 확인
+        content_type = response.headers.get('Content-Type', 'image/png')
+        
+        # 파일 확장자 결정
+        if 'jpeg' in content_type or 'jpg' in content_type:
+            file_extension = 'jpg'
+            media_type = 'image/jpeg'
+        else:
+            file_extension = 'png'
+            media_type = 'image/png'
+        
+        # 이미지 데이터를 바이너리로 반환
+        return Response(
+            content=response.content,
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f"attachment; filename=persona_image.{file_extension}",
+                "Content-Length": str(len(response.content))
+            }
+        )
+        
+    except requests.exceptions.Timeout:
+        logger.error(f"이미지 다운로드 타임아웃: {image_url}")
+        raise HTTPException(
+            status_code=504, 
+            detail="이미지 다운로드 시간이 초과되었습니다."
+        )
+    except requests.exceptions.RequestException as e:
+        logger.error(f"이미지 다운로드 요청 오류: {e}")
+        raise HTTPException(
+            status_code=502, 
+            detail=f"이미지 서버에 연결할 수 없습니다: {str(e)}"
+        )
+    except Exception as e:
+        logger.error(f"이미지 다운로드 일반 오류: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"이미지 다운로드 중 오류가 발생했습니다: {str(e)}"
+        )
+
+# 이미지 정보 확인 API (선택사항 - 디버깅용)
+@router.post("/check-image")
+async def check_image_info(
+    request: ImageDownloadRequest,
+    current_user: models.User = Depends(get_current_active_user)
+):
+    """
+    이미지 URL의 접근성과 정보를 확인하는 디버깅용 API
+    """
+    try:
+        image_url = request.image_url
+        
+        # HEAD 요청으로 이미지 정보만 확인
+        response = requests.head(image_url, timeout=10)
+        
+        return {
+            "url": image_url,
+            "status_code": response.status_code,
+            "headers": dict(response.headers),
+            "accessible": response.status_code == 200
+        }
+        
+    except Exception as e:
+        return {
+            "url": image_url,
+            "error": str(e),
+            "accessible": False
+        }
