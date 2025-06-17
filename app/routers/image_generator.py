@@ -32,8 +32,7 @@ router = APIRouter()
 
 # 작업 디렉토리 설정
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-WORKFLOW_FILE = BASE_DIR / 'flux1-dev.json'
-API_FILE = BASE_DIR / 'flux1-dev-api.json'
+API_FILE = BASE_DIR / 'flux1-dev-new.json'
 
 # 현재 경로 로깅
 logger.info(f"현재 실행 경로: {Path.cwd()}")

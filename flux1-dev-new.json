@@ -1,10 +1,10 @@
 {
   "6": {
     "inputs": {
-      "text": "beautiful Korean woman, holding coffee cup, street background, Seoul, urban cityscape, cafe culture, soft smile, casual elegant outfit, high quality, photorealistic, detailed face features, long black hair, morning atmosphere, coffee shop exterior, modern Korean fashion, gentle expression, 8k resolution, natural pose, full portrait, cinematic composition",
+      "text": "A lively Korean high school girl, 18 years old, with half-up hair tied with a big ribbon, always wearing a korean school girl uniform, genuine smile. She’s sitting casually at a school desk, her school bag placed carelessly nearby. Her look is cheerful and a bit unkempt, She has expressive, sparkling eyes and an energetic pose, waving her hand lightly as if greeting a friend. The classroom setting is warm and filled with sunlight, creating an inviting and happy mood. Her personality shines through—bubbly, talkative, full of laughter and big reactions, the type who lights up the room. The overall vibe is playful, genuine, and radiates positive energy.",
       "clip": [
-        "11",
-        0
+        "38",
+        1
       ]
     },
     "class_type": "CLIPTextEncode",
@@ -102,7 +102,7 @@
   },
   "16": {
     "inputs": {
-      "sampler_name": "euler"
+      "sampler_name": "dpm_2"
     },
     "class_type": "KSamplerSelect",
     "_meta": {
@@ -112,7 +112,7 @@
   "17": {
     "inputs": {
       "scheduler": "karras",
-      "steps": 40,
+      "steps": 60,
       "denoise": 1,
       "model": [
         "30",
@@ -142,7 +142,7 @@
   },
   "25": {
     "inputs": {
-      "noise_seed": 1091938682215789
+      "noise_seed": 977111422092856
     },
     "class_type": "RandomNoise",
     "_meta": {
@@ -166,7 +166,7 @@
     "inputs": {
       "width": 1024,
       "height": 1024,
-      "batch_size": 2
+      "batch_size": 1
     },
     "class_type": "EmptySD3LatentImage",
     "_meta": {
@@ -180,13 +180,32 @@
       "width": 1024,
       "height": 1024,
       "model": [
-        "12",
+        "38",
         0
       ]
     },
     "class_type": "ModelSamplingFlux",
     "_meta": {
       "title": "모델 샘플링 (FLUX)"
+    }
+  },
+  "38": {
+    "inputs": {
+      "lora_name": "pytorch_lora_weights.safetensors",
+      "strength_model": 1,
+      "strength_clip": 1,
+      "model": [
+        "12",
+        0
+      ],
+      "clip": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "LoRA 로드"
     }
   }
 }

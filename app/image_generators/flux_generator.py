@@ -26,8 +26,7 @@ class FluxGenerator(ImageGenerator):
         
         # 작업 디렉토리 설정 (워크플로우 파일 로드에 필요)
         self.base_dir = Path(__file__).resolve().parent.parent.parent
-        self.workflow_file = self.base_dir / 'flux1-dev.json' # 이 파일이 실제로 사용되는지 확인 필요
-        self.api_file = self.base_dir / 'flux1-dev-api.json' # 워크플로우 API 정의 파일
+        self.api_file = self.base_dir / 'flux1-dev-new.json' # 워크플로우 API 정의 파일
         
         # ComfyUI 서버 설정
         self.comfyui_server = os.getenv("COMFYUI_SERVER", "http://192.168.0.151:8188")
