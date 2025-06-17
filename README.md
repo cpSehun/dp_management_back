@@ -1,3 +1,6 @@
+## 어드민 계정 생성
+docker exec -it dp_management_backend_dev python create_admin.py
+
 # DP 관리 시스템 - 백엔드
 
 FastAPI와 SQLAlchemy로 구현된 DP 관리 시스템의 백엔드입니다.
