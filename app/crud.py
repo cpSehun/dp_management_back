@@ -492,3 +492,188 @@ def rollback_persona_prompt(db: Session, prompt_id: int, target_version: int, us
     db.commit()
     db.refresh(db_prompt)
     return db_prompt
+
+############################### persona 생성 관련 ###############################
+
+def get_workflow_prompt(db: Session, prompt_id: int) -> Optional[models.WorkflowPrompt]:
+    """워크플로우 프롬프트 상세 조회 (버전 포함)"""
+    from sqlalchemy.orm import selectinload
+    return db.query(models.WorkflowPrompt).options(
+        joinedload(models.WorkflowPrompt.created_by_user),
+        selectinload(models.WorkflowPrompt.versions).joinedload(models.WorkflowPromptVersion.created_by_user)
+    ).filter(models.WorkflowPrompt.id == prompt_id).first()
+
+def get_workflow_prompts(db: Session, skip: int = 0, limit: int = 100, search_term: Optional[str] = None) -> List[models.WorkflowPrompt]:
+    """워크플로우 프롬프트 목록 조회"""
+    from sqlalchemy.orm import selectinload
+    query = db.query(models.WorkflowPrompt).options(
+        joinedload(models.WorkflowPrompt.created_by_user),
+        selectinload(models.WorkflowPrompt.versions).joinedload(models.WorkflowPromptVersion.created_by_user)
+    )
+    if search_term:
+        search_filter = f"%{search_term}%"
+        query = query.filter(
+            or_(
+                models.WorkflowPrompt.name.ilike(search_filter),
+                models.WorkflowPrompt.llm_prompt.ilike(search_filter),
+                models.WorkflowPrompt.category.ilike(search_filter)
+            )
+        )
+    return query.order_by(desc(models.WorkflowPrompt.updated_at)).offset(skip).limit(limit).all()
+
+def get_workflow_prompts_count(db: Session, search_term: Optional[str] = None) -> int:
+    """워크플로우 프롬프트 총 개수"""
+    query = db.query(models.WorkflowPrompt)
+    if search_term:
+        search_filter = f"%{search_term}%"
+        query = query.filter(
+            or_(
+                models.WorkflowPrompt.name.ilike(search_filter),
+                models.WorkflowPrompt.llm_prompt.ilike(search_filter),
+                models.WorkflowPrompt.category.ilike(search_filter)
+            )
+        )
+    return query.count()
+
+def get_latest_workflow_prompt(db: Session, category: str, type: Optional[str] = None) -> Optional[models.WorkflowPrompt]:
+    """특정 category+type의 최신 버전 프롬프트 조회"""
+    query = db.query(models.WorkflowPrompt).filter(
+        models.WorkflowPrompt.category == category
+    )
+    
+    if type is not None:
+        query = query.filter(models.WorkflowPrompt.type == type)
+    else:
+        query = query.filter(models.WorkflowPrompt.type.is_(None))
+    
+    # 같은 category+type에서 가장 높은 version을 가진 프롬프트 반환
+    return query.order_by(desc(models.WorkflowPrompt.version)).first()
+
+def create_workflow_prompt(db: Session, prompt_in: schemas.WorkflowPromptCreate, user_id: Optional[int] = None) -> models.WorkflowPrompt:
+    """새 워크플로우 프롬프트 생성 (v1으로 시작)"""
+    # 1. prompts 테이블에 저장 (version=1)
+    db_prompt = models.WorkflowPrompt(
+        name=prompt_in.name,
+        category=prompt_in.category,
+        type=prompt_in.type,
+        llm_prompt=prompt_in.llm_prompt,
+        version=1,
+        created_by=user_id,
+    )
+    db.add(db_prompt)
+    db.flush()
+
+    # 2. prompt_versions 테이블에도 저장 (version=1)
+    db_version = models.WorkflowPromptVersion(
+        prompt_id=db_prompt.id,
+        version=1,
+        llm_prompt=prompt_in.llm_prompt,
+        created_by=user_id,
+    )
+    db.add(db_version)
+    
+    db.commit()
+    db.refresh(db_prompt)
+    return db_prompt
+
+def update_workflow_prompt(db: Session, prompt_id: int, prompt_in: schemas.WorkflowPromptUpdate, user_id: Optional[int] = None) -> Optional[models.WorkflowPrompt]:
+    """워크플로우 프롬프트 수정 (새 버전 생성)"""
+    db_prompt = db.query(models.WorkflowPrompt).filter(models.WorkflowPrompt.id == prompt_id).first()
+    if not db_prompt:
+        return None
+
+    # 1. 현재 prompts 테이블 내용을 prompt_versions에 백업 (이미 있다면 스킵)
+    existing_version = db.query(models.WorkflowPromptVersion).filter(
+        models.WorkflowPromptVersion.prompt_id == prompt_id,
+        models.WorkflowPromptVersion.version == db_prompt.version,
+        models.WorkflowPromptVersion.llm_prompt == db_prompt.llm_prompt
+    ).first()
+    
+    if not existing_version:
+        backup_version = models.WorkflowPromptVersion(
+            prompt_id=db_prompt.id,
+            version=db_prompt.version,
+            llm_prompt=db_prompt.llm_prompt,
+            created_by=db_prompt.created_by,
+            created_at=db_prompt.updated_at or db_prompt.created_at
+        )
+        db.add(backup_version)
+
+    # 2. 모든 버전 중 가장 높은 버전 번호 찾기
+    max_version = db.query(func.max(models.WorkflowPromptVersion.version)).filter(
+        models.WorkflowPromptVersion.prompt_id == prompt_id
+    ).scalar() or 0
+    
+    next_version = max(max_version, db_prompt.version) + 1
+
+    # 3. prompts 테이블 업데이트
+    update_data = prompt_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_prompt, field, value)
+    
+    db_prompt.version = next_version
+    db_prompt.updated_at = func.now()
+
+    # 4. 새 버전을 prompt_versions에 저장
+    new_version = models.WorkflowPromptVersion(
+        prompt_id=db_prompt.id,
+        version=next_version,
+        llm_prompt=db_prompt.llm_prompt,
+        created_by=user_id,
+    )
+    db.add(new_version)
+
+    db.commit()
+    db.refresh(db_prompt)
+    return db_prompt
+
+def rollback_workflow_prompt(db: Session, prompt_id: int, target_version: int, user_id: Optional[int] = None) -> Optional[models.WorkflowPrompt]:
+    """워크플로우 프롬프트 롤백 (지정된 버전으로 복원)"""
+    db_prompt = db.query(models.WorkflowPrompt).filter(models.WorkflowPrompt.id == prompt_id).first()
+    if not db_prompt:
+        return None
+
+    # 1. 타겟 버전 찾기
+    target_version_data = db.query(models.WorkflowPromptVersion).filter(
+        models.WorkflowPromptVersion.prompt_id == prompt_id,
+        models.WorkflowPromptVersion.version == target_version
+    ).first()
+    
+    if not target_version_data:
+        return None
+
+    # 2. 현재 prompts 내용을 versions에 백업
+    existing_version = db.query(models.WorkflowPromptVersion).filter(
+        models.WorkflowPromptVersion.prompt_id == prompt_id,
+        models.WorkflowPromptVersion.version == db_prompt.version,
+        models.WorkflowPromptVersion.llm_prompt == db_prompt.llm_prompt
+    ).first()
+    
+    if not existing_version:
+        backup_version = models.WorkflowPromptVersion(
+            prompt_id=db_prompt.id,
+            version=db_prompt.version,
+            llm_prompt=db_prompt.llm_prompt,
+            created_by=db_prompt.created_by,
+            created_at=db_prompt.updated_at or db_prompt.created_at
+        )
+        db.add(backup_version)
+
+    # 3. prompts 테이블을 타겟 버전으로 복원
+    db_prompt.llm_prompt = target_version_data.llm_prompt
+    db_prompt.version = target_version
+    db_prompt.updated_at = func.now()
+
+    db.commit()
+    db.refresh(db_prompt)
+    return db_prompt
+
+def delete_workflow_prompt(db: Session, prompt_id: int) -> bool:
+    """워크플로우 프롬프트 삭제 (모든 버전 포함)"""
+    db_prompt = db.query(models.WorkflowPrompt).filter(models.WorkflowPrompt.id == prompt_id).first()
+    if not db_prompt:
+        return False
+    
+    db.delete(db_prompt)
+    db.commit()
+    return True

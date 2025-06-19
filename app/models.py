@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float, BigInteger
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, ForeignKey, Float, BigInteger, Index
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship, declarative_mixin, declared_attr
 from app.database import Base
@@ -23,6 +23,10 @@ class User(Base):
     generated_images = relationship("GeneratedImage", back_populates="user")
     image_prompts = relationship("ImagePrompt", back_populates="created_by_user")
     persona_prompts = relationship("PersonaPrompt", back_populates="created_by_user")
+    
+    # 새로 추가할 relationships
+    workflow_prompts = relationship("WorkflowPrompt", back_populates="created_by_user")
+    workflow_prompt_versions = relationship("WorkflowPromptVersion", back_populates="created_by_user")
 
 class GeneratedImage(Base):
     """
@@ -102,3 +106,48 @@ class PersonaPromptVersion(Base):
     # 관계 설정
     prompt = relationship("PersonaPrompt", back_populates="versions")
     created_by_user = relationship("User", foreign_keys=[created_by])  # 수정: foreign_keys 명시
+    
+    
+    
+############################### persona 생성 관련 ###############################
+
+class WorkflowPrompt(Base):
+    __tablename__ = "workflow_prompts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), index=True, nullable=False)  # "컨셉 생성 프롬프트(캐릭터)" 등
+    category = Column(String(50), nullable=False, index=True)  # concept, persona_info, summary, tags, image
+    type = Column(String(10), nullable=True, index=True)  # CHAR, STORY, NULL
+    llm_prompt = Column(Text, nullable=False)
+    version = Column(Integer, nullable=False)  # 현재 활성 버전 번호
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    
+    # 관계 설정
+    versions = relationship("WorkflowPromptVersion", back_populates="prompt", cascade="all, delete-orphan")
+    created_by_user = relationship("User", back_populates="workflow_prompts")
+    
+    # 복합 인덱스 (category + type 조합으로 빠른 조회)
+    __table_args__ = (
+        Index('idx_workflow_category_type', 'category', 'type'),
+    )
+
+class WorkflowPromptVersion(Base):
+    __tablename__ = "workflow_prompt_versions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    prompt_id = Column(Integer, ForeignKey("workflow_prompts.id"), nullable=False)
+    version = Column(Integer, nullable=False)
+    llm_prompt = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # 관계 설정
+    prompt = relationship("WorkflowPrompt", back_populates="versions")
+    created_by_user = relationship("User", back_populates="workflow_prompt_versions")
+
+# User 모델에 추가할 관계
+# class User(Base):에 추가:
+#     workflow_prompts = relationship("WorkflowPrompt", back_populates="created_by_user")
+#     workflow_prompt_versions = relationship("WorkflowPromptVersion", back_populates="created_by_user")

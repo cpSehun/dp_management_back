@@ -6,6 +6,7 @@ import os # os 임포트
 from dotenv import load_dotenv # dotenv 임포트
 import logging # logging 임포트 추가
 from fastapi.middleware.cors import CORSMiddleware # CORS 임포트
+from app.routers import workflow_prompts
 
 logging.basicConfig(level=logging.INFO)
 
@@ -78,6 +79,13 @@ app.include_router(image_prompt.router)
 app.include_router(persona_prompt.router) # persona_prompt 라우터 등록
 app.include_router(generated_images.router) # 생성된 이미지 라우터 등록
 app.include_router(llm.router) # LLM 라우터 등록
+#### persona 생성 관련 ####
+app.include_router(
+    workflow_prompts.router,
+    prefix="/api/v1/prompts/workflow",
+    tags=["workflow-prompts"]
+)
+
 
 # 루트 엔드포인트 (기본 테스트용)
 @app.get("/")

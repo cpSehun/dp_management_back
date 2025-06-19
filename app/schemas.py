@@ -174,3 +174,66 @@ class PersonaPromptResponse(PersonaPromptInDB):
 class PaginatedPersonaPromptsResponse(BaseModel):
     total_items: int
     items: List[PersonaPromptResponse]
+    
+
+############################### persona 생성 관련 ###############################
+
+# WorkflowPromptVersion 스키마
+class WorkflowPromptVersionBase(BaseModel):
+    version: int
+    llm_prompt: str
+
+class WorkflowPromptVersionCreate(WorkflowPromptVersionBase):
+    pass
+
+class WorkflowPromptVersion(WorkflowPromptVersionBase):
+    id: int
+    prompt_id: int
+    created_at: datetime
+    created_by: Optional[int] = None
+
+    class Config:
+        from_attributes = True
+
+# WorkflowPrompt 스키마
+class WorkflowPromptBase(BaseModel):
+    name: str
+    category: str  # concept, persona_info, summary, tags, image
+    type: Optional[str] = None  # CHAR, STORY, NULL
+    llm_prompt: str
+
+class WorkflowPromptCreate(WorkflowPromptBase):
+    pass
+
+class WorkflowPromptUpdate(BaseModel):
+    name: Optional[str] = None
+    llm_prompt: Optional[str] = None
+
+class WorkflowPrompt(WorkflowPromptBase):
+    id: int
+    version: int
+    created_by: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+    versions: List[WorkflowPromptVersion] = []
+
+    class Config:
+        from_attributes = True
+
+# 페이지네이션 응답
+class PaginatedWorkflowPrompts(BaseModel):
+    total_items: int
+    items: List[WorkflowPrompt]
+
+# 최신 프롬프트 조회용 스키마
+class LatestPromptRequest(BaseModel):
+    category: str
+    type: Optional[str] = None
+
+class LatestPromptResponse(BaseModel):
+    id: int
+    name: str
+    category: str
+    type: Optional[str] = None
+    llm_prompt: str
+    version: int
