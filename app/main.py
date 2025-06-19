@@ -6,7 +6,6 @@ import os # os 임포트
 from dotenv import load_dotenv # dotenv 임포트
 import logging # logging 임포트 추가
 from fastapi.middleware.cors import CORSMiddleware # CORS 임포트
-from app.routers import workflow_prompts
 
 logging.basicConfig(level=logging.INFO)
 
@@ -59,10 +58,9 @@ from app.routers import users # 상대 경로를 절대 경로로 변경
 from app.routers import auth  # 상대 경로를 절대 경로로 변경
 from app.routers import oauth_google # 상대 경로를 절대 경로로 변경
 from app.routers import image_generator # 이미지 생성 라우터 추가
-from app.routers import image_prompt # 새로 추가한 라우터
-from app.routers import persona_prompt # persona_prompt 추가
 from app.routers import generated_images # 이미지 생성 라우터 추가
 from app.routers import llm
+from app.routers import workflow_prompts # workflow_prompts 라우터 임포트 추가
 
 # API V1 경로 설정을 위한 부모 라우터 (선택 사항이지만 권장)
 # from fastapi import APIRouter
@@ -75,8 +73,6 @@ app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(oauth_google.router, prefix="/api/v1/auth/google", tags=["OAuth - Google"])
 app.include_router(image_generator.router, prefix="/api/v1/image-generator", tags=["Image Generator"])
-app.include_router(image_prompt.router)
-app.include_router(persona_prompt.router) # persona_prompt 라우터 등록
 app.include_router(generated_images.router) # 생성된 이미지 라우터 등록
 app.include_router(llm.router) # LLM 라우터 등록
 #### persona 생성 관련 ####

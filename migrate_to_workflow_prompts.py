@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # 초기 프롬프트 데이터
 INITIAL_PROMPTS = [
     {
-        "name": "컨셉 생성 프롬프트(캐릭터)",
+        "name": "컨셉 생성 프롬프트",
         "category": "concept",
         "type": "CHAR",
         "llm_prompt": """생성형 llm을 이용해서 ai 캐릭터챗 서비스를 만들고있어. 
@@ -29,7 +29,7 @@ INITIAL_PROMPTS = [
 너무 역할극 같이 어려운 컨셉을 피해주고, 사용자가 다양한 성격의 캐릭터와 채팅을 통해 대화를 연습할 수 있는 목적이면좋아."""
     },
     {
-        "name": "컨셉 생성 프롬프트(스토리)",
+        "name": "컨셉 생성 프롬프트",
         "category": "concept",
         "type": "STORY",
         "llm_prompt": """생성형 llm을 이용해서 ai 캐릭터챗 서비스를 만들고있어. 
@@ -47,7 +47,7 @@ INITIAL_PROMPTS = [
 사용자는 남녀 가리지 않고 서비스는 성인 서비스니까 연령 제한없이 만들어줘."""
     },
     {
-        "name": "페르소나 정보 생성 프롬프트(캐릭터)",
+        "name": "페르소나 정보 생성 프롬프트",
         "category": "persona_info",
         "type": "CHAR",
         "llm_prompt": """생성형 llm을 이용해서 ai 캐릭터챗 서비스를 만들고있어. 
@@ -85,7 +85,7 @@ INITIAL_PROMPTS = [
 - () 괄호를 사용한 지문을 활용하여 현재 대화를 하는 배경이나 페르소나의 표정, 상태 등을 나타내는 것도 좋음."""
     },
     {
-        "name": "페르소나 정보 생성 프롬프트(스토리)",
+        "name": "페르소나 정보 생성 프롬프트",
         "category": "persona_info",
         "type": "STORY",
         "llm_prompt": """생성형 llm을 이용해서 ai 캐릭터챗 서비스를 만들고있어. 

@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# 두 가지 경로를 모두 처리하도록 설정
 @router.get("/", response_model=schemas.PaginatedWorkflowPrompts)
+@router.get("", response_model=schemas.PaginatedWorkflowPrompts)
 async def get_workflow_prompts(
     skip: int = Query(0, ge=0, description="건너뛸 항목 수"),
     limit: int = Query(100, ge=1, le=1000, description="가져올 최대 항목 수"),
@@ -36,23 +38,23 @@ async def get_workflow_prompts(
 
 @router.get("/latest", response_model=schemas.LatestPromptResponse)
 async def get_latest_workflow_prompt(
-    category: str = Query(..., description="프롬프트 카테고리"),
     type: Optional[str] = Query(None, description="프롬프트 타입 (CHAR/STORY)"),
     db: Session = Depends(get_db)
 ):
     """최신 워크플로우 프롬프트 조회 (페르소나 생성 시 사용)"""
     try:
-        prompt = crud.get_latest_workflow_prompt(db, category=category, type=type)
+        prompt = crud.get_latest_workflow_prompt(db, type=type)
         if not prompt:
+            # 더 구체적인 에러 메시지
+            type_desc = f"Type '{type}'" if type else "타입이 지정되지 않은"
             raise HTTPException(
                 status_code=404, 
-                detail=f"Category '{category}', Type '{type}'에 해당하는 프롬프트를 찾을 수 없습니다"
+                detail=f"{type_desc} 프롬프트를 찾을 수 없습니다. 관리자 페이지에서 해당 타입의 프롬프트를 먼저 생성해주세요."
             )
         
         return schemas.LatestPromptResponse(
             id=prompt.id,
             name=prompt.name,
-            category=prompt.category,
             type=prompt.type,
             llm_prompt=prompt.llm_prompt,
             version=prompt.version
@@ -133,5 +135,3 @@ async def rollback_workflow_prompt(
     except Exception as e:
         logger.error(f"프롬프트 롤백 오류: {e}")
         raise HTTPException(status_code=500, detail="프롬프트 롤백 중 오류가 발생했습니다")
-
-# POST 엔드포인트는 제외 (Admin에서 생성 기능 없음)

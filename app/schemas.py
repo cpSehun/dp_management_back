@@ -75,106 +75,6 @@ class ImageRequest(BaseModel):
     seed: Optional[int] = None
     model: Optional[str] = "flux-dev"
 
-# --- ImagePromptVersion Schemas ---
-class ImagePromptVersionBase(BaseModel):
-    llm_prompt: str
-
-class ImagePromptVersionCreate(ImagePromptVersionBase):
-    pass
-
-class ImagePromptVersionUpdate(BaseModel):
-    llm_prompt: Optional[str] = None
-
-class ImagePromptVersionInDB(ImagePromptVersionBase):
-    id: int
-    prompt_id: int
-    version: int
-    created_at: datetime
-    created_by: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-# --- ImagePrompt Schemas ---
-class ImagePromptBase(BaseModel):
-    name: str
-    llm_prompt: str
-
-class ImagePromptCreate(ImagePromptBase):
-    pass
-
-class ImagePromptUpdate(BaseModel):
-    name: Optional[str] = None
-    llm_prompt: Optional[str] = None
-
-class ImagePromptInDB(ImagePromptBase):
-    id: int
-    version: int
-    created_at: datetime
-    updated_at: datetime
-    created_by: Optional[str] = None
-    versions: List[ImagePromptVersionInDB] = []
-
-    class Config:
-        from_attributes = True
-
-class ImagePromptResponse(ImagePromptInDB):
-    pass
-
-class PaginatedImagePromptsResponse(BaseModel):
-    total_items: int
-    items: List[ImagePromptResponse]
-
-# --- PersonaPromptVersion Schemas ---
-class PersonaPromptVersionBase(BaseModel):
-    llm_prompt: str
-
-class PersonaPromptVersionCreate(PersonaPromptVersionBase):
-    pass
-
-class PersonaPromptVersionUpdate(BaseModel):
-    llm_prompt: Optional[str] = None
-
-class PersonaPromptVersionInDB(PersonaPromptVersionBase):
-    id: int
-    prompt_id: int
-    version: int
-    created_at: datetime
-    created_by: Optional[str] = None
-
-    class Config:
-        from_attributes = True
-
-# --- PersonaPrompt Schemas ---
-class PersonaPromptBase(BaseModel):
-    name: str
-    llm_prompt: str
-
-class PersonaPromptCreate(PersonaPromptBase):
-    pass
-
-class PersonaPromptUpdate(BaseModel):
-    name: Optional[str] = None
-    llm_prompt: Optional[str] = None
-
-class PersonaPromptInDB(PersonaPromptBase):
-    id: int
-    version: int
-    created_at: datetime
-    updated_at: datetime
-    created_by: Optional[str] = None
-    versions: List[PersonaPromptVersionInDB] = []
-
-    class Config:
-        from_attributes = True
-
-class PersonaPromptResponse(PersonaPromptInDB):
-    pass
-
-class PaginatedPersonaPromptsResponse(BaseModel):
-    total_items: int
-    items: List[PersonaPromptResponse]
-    
 
 ############################### persona 생성 관련 ###############################
 
@@ -198,7 +98,6 @@ class WorkflowPromptVersion(WorkflowPromptVersionBase):
 # WorkflowPrompt 스키마
 class WorkflowPromptBase(BaseModel):
     name: str
-    category: str  # concept, persona_info, summary, tags, image
     type: Optional[str] = None  # CHAR, STORY, NULL
     llm_prompt: str
 
@@ -220,20 +119,18 @@ class WorkflowPrompt(WorkflowPromptBase):
     class Config:
         from_attributes = True
 
-# 페이지네이션 응답
-class PaginatedWorkflowPrompts(BaseModel):
-    total_items: int
-    items: List[WorkflowPrompt]
-
-# 최신 프롬프트 조회용 스키마
+# 최신 프롬프트 조회용 스키마도 수정
 class LatestPromptRequest(BaseModel):
-    category: str
     type: Optional[str] = None
 
 class LatestPromptResponse(BaseModel):
     id: int
     name: str
-    category: str
     type: Optional[str] = None
     llm_prompt: str
     version: int
+
+# 페이지네이션 응답
+class PaginatedWorkflowPrompts(BaseModel):
+    total_items: int
+    items: List[WorkflowPrompt]
