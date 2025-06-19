@@ -98,6 +98,7 @@ class WorkflowPromptVersion(WorkflowPromptVersionBase):
 # WorkflowPrompt 스키마
 class WorkflowPromptBase(BaseModel):
     name: str
+    category: str
     type: Optional[str] = None  # CHAR, STORY, NULL
     llm_prompt: str
 
@@ -126,9 +127,11 @@ class LatestPromptRequest(BaseModel):
 class LatestPromptResponse(BaseModel):
     id: int
     name: str
-    type: Optional[str] = None
+    category: str 
+    type: Optional[str]
     llm_prompt: str
     version: int
+
 
 # 페이지네이션 응답
 class PaginatedWorkflowPrompts(BaseModel):

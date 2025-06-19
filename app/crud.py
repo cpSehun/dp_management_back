@@ -209,16 +209,19 @@ def get_workflow_prompts_count(db: Session, search_term: Optional[str] = None) -
         )
     return query.count()
 
-def get_latest_workflow_prompt(db: Session, type: Optional[str] = None) -> Optional[models.WorkflowPrompt]:
-    """특정 type의 최신 버전 프롬프트 조회"""
+def get_latest_workflow_prompt(db: Session, category: Optional[str] = None, type: Optional[str] = None) -> Optional[models.WorkflowPrompt]:
+    """특정 category와 type의 최신 버전 프롬프트 조회"""
     query = db.query(models.WorkflowPrompt)
+    
+    if category is not None:
+        query = query.filter(models.WorkflowPrompt.category == category)
     
     if type is not None:
         query = query.filter(models.WorkflowPrompt.type == type)
     else:
         query = query.filter(models.WorkflowPrompt.type.is_(None))
     
-    # 같은 type에서 가장 높은 version을 가진 프롬프트 반환
+    # 같은 category+type에서 가장 높은 version을 가진 프롬프트 반환
     return query.order_by(desc(models.WorkflowPrompt.version)).first()
 
 def create_workflow_prompt(db: Session, prompt_in: schemas.WorkflowPromptCreate, user_id: Optional[int] = None) -> models.WorkflowPrompt:

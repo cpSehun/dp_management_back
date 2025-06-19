@@ -53,6 +53,7 @@ class WorkflowPrompt(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False, index=True)
+    category = Column(String(50), nullable=False)
     type = Column(String(10), nullable=True, index=True)  # CHAR, STORY, NULL
     llm_prompt = Column(Text, nullable=False)
     version = Column(Integer, nullable=False)  # 현재 활성 버전 번호
