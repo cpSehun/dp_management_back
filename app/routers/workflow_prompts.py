@@ -7,7 +7,8 @@ import logging
 
 from app.database import get_db
 from app.security import get_current_active_user
-from app import models, schemas, crud
+from app.domains.users.models import User  # User 모델만 도메인에서 import
+from app import schemas, crud  # WorkflowPrompt 관련은 기존 유지
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ async def get_workflow_prompts(
     limit: int = Query(100, ge=1, le=1000, description="가져올 최대 항목 수"),
     search: Optional[str] = Query(None, description="검색어"),
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """워크플로우 프롬프트 목록 조회"""
     try:
@@ -68,7 +69,7 @@ async def get_latest_workflow_prompt(
 async def get_workflow_prompt(
     prompt_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """워크플로우 프롬프트 상세 조회"""
     try:
@@ -88,7 +89,7 @@ async def update_workflow_prompt(
     prompt_id: int,
     prompt_update: schemas.WorkflowPromptUpdate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """워크플로우 프롬프트 수정 (새 버전 생성)"""
     try:
@@ -114,7 +115,7 @@ async def rollback_workflow_prompt(
     prompt_id: int,
     target_version: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """워크플로우 프롬프트 버전 롤백"""
     try:

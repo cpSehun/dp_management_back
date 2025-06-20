@@ -137,3 +137,5 @@ class LatestPromptResponse(BaseModel):
 class PaginatedWorkflowPrompts(BaseModel):
     total_items: int
     items: List[WorkflowPrompt]
+
+

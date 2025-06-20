@@ -4,6 +4,7 @@ from typing import List, Optional
 from sqlalchemy import or_, desc
 from sqlalchemy.sql import func
 
+
 # 기존 사용자 관련 CRUD 함수들은 그대로 유지
 def get_user(db: Session, user_id: int):
     return db.query(models.User).filter(models.User.id == user_id).first()

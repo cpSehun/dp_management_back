@@ -8,9 +8,9 @@ import json
 import logging
 from openai import OpenAI
 
-from ..database import get_db
-from ..security import get_current_active_user
-from .. import models
+from app.database import get_db  # 상대 경로를 절대 경로로 변경
+from app.security import get_current_active_user  # 상대 경로를 절대 경로로 변경
+from app.domains.users.models import User  # User 모델만 도메인에서 import
 
 # 로깅 설정
 logger = logging.getLogger(__name__)
@@ -187,7 +187,7 @@ llm_service = LLMService()
 async def generate_text(
     request: LLMGenerateRequest,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     LLM을 사용하여 텍스트 생성
@@ -224,7 +224,7 @@ async def generate_text(
 
 @router.get("/models")
 async def list_available_models(
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     사용 가능한 LLM 모델 목록 반환

@@ -1,3 +1,5 @@
+from app.domains.users import crud, schemas  # 도메인에서 import
+from app import security, database  # 공통 모듈은 기존대로
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -5,11 +7,10 @@ from authlib.integrations.starlette_client import OAuth
 from starlette.requests import Request
 import os
 from dotenv import load_dotenv
-
-from app import crud, schemas, security, database
 from app.database import get_db
-
 import logging
+
+
 logger = logging.getLogger("uvicorn")
 
 load_dotenv()

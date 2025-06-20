@@ -1,108 +1,125 @@
+"""
+메인 애플리케이션 - 도메인 기반 모듈화 적용
+"""
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import text # text 함수 임포트
-from starlette.middleware.sessions import SessionMiddleware # SessionMiddleware 임포트
-import os # os 임포트
-from dotenv import load_dotenv # dotenv 임포트
-import logging # logging 임포트 추가
-from fastapi.middleware.cors import CORSMiddleware # CORS 임포트
+from sqlalchemy import text
+from starlette.middleware.sessions import SessionMiddleware
+import logging
+from fastapi.middleware.cors import CORSMiddleware
 
-logging.basicConfig(level=logging.INFO)
+# 기존 모듈들 (공통 사용)
+from app.database import engine, get_db
+from app.security import get_current_active_user
 
-# database.py, models.py 등 다른 모듈 임포트 (추후 생성)
-# 상대 경로 임포트를 절대 경로 임포트로 변경
-import app.models as models # 상대 경로 임포트를 절대 경로 임포트로 변경
-from app.database import engine, get_db # 상대 경로 임포트를 절대 경로 임포트로 변경
-
-# .env 파일에서 환경 변수 로드
-load_dotenv()
-
-# SQLAlchemy 모델을 기반으로 데이터베이스 테이블 생성
-# 애플리케이션 시작 시 테이블이 없으면 생성합니다.
-# 프로덕션 환경에서는 Alembic과 같은 마이그레이션 도구 사용을 권장합니다.
-models.Base.metadata.create_all(bind=engine)
-
-# FastAPI 앱 인스턴스 생성
-app = FastAPI(
-    title="DP Management API",
-    description="API for managing DP tasks, including image generation and prompt management.",
-    version="0.1.0",
+# 도메인별 모듈 임포트
+from app.domains import (
+    users_router,
+    personas_router,
+    # images_router,    # 아직 마이그레이션 전
+    # prompts_router    # 아직 마이그레이션 전
 )
 
-# -------- CORS 미들웨어 추가 --------
+# 기존 라우터들 (아직 마이그레이션 안된 것들)
+from app.routers import auth, oauth_google, image_generator, generated_images, llm, workflow_prompts
+
+# 설정
+from app.core.config import settings
+
+# 로깅 설정
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# 모든 도메인의 모델들을 Base에 등록 (마이그레이션 후 정리)
+from app.domains.users.models import User  # User 모델 임포트
+import app.models as legacy_models  # 기존 모델들 (임시)
+
+# 데이터베이스 테이블 생성
+legacy_models.Base.metadata.create_all(bind=engine)
+
+# FastAPI 앱 생성
+app = FastAPI(
+    title="DP Management API",
+    description="도메인 기반 모듈화를 적용한 DP 관리 시스템 API",
+    version="2.0.0",
+)
+
+# CORS 미들웨어
 origins = [
-    "http://localhost:3000", # 프론트엔드 주소 
-    # "http://frontend:3000",
+    "http://localhost:3000",
     "http://192.168.0.105:3000",
-    # "http://192.168.0.105:8000"
-    # 필요하다면 다른 허용할 오리진 추가
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True, # 자격 증명(쿠키, 인증 헤더 등) 허용 여부
-    allow_methods=["*"], # 모든 HTTP 메소드 허용
-    allow_headers=["*"], # 모든 HTTP 헤더 허용
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-# ----------------------------------
 
-# SessionMiddleware 추가
-# SECRET_KEY는 세션 데이터 암호화에 사용되므로, 강력하고 안전하게 관리해야 합니다.
-# .env 파일에 SESSION_SECRET_KEY='your-strong-random-secret-key' 와 같이 설정합니다.
-SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY")
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
+# 세션 미들웨어
+app.add_middleware(SessionMiddleware, secret_key=settings.session_secret_key)
 
-# 라우터 임포트 및 등록 (상대 경로를 절대 경로로 변경)
-from app.routers import users # 상대 경로를 절대 경로로 변경
-from app.routers import auth  # 상대 경로를 절대 경로로 변경
-from app.routers import oauth_google # 상대 경로를 절대 경로로 변경
-from app.routers import image_generator # 이미지 생성 라우터 추가
-from app.routers import generated_images # 이미지 생성 라우터 추가
-from app.routers import llm
-from app.routers import workflow_prompts # workflow_prompts 라우터 임포트 추가
+# 도메인별 라우터 등록
+app.include_router(users_router, prefix="/api/v1/users", tags=["Users"])
+app.include_router(personas_router, prefix="/api/v1/persona", tags=["Persona"])
 
-# API V1 경로 설정을 위한 부모 라우터 (선택 사항이지만 권장)
-# from fastapi import APIRouter
-# api_v1_router = APIRouter(prefix="/api/v1")
-# api_v1_router.include_router(users.router, prefix="/users", tags=["Users"])
-# app.include_router(api_v1_router)
-
-# 간단하게 직접 등록 (API 버전 관리가 덜 중요할 경우)
-app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
+# 기존 라우터들 (아직 마이그레이션 안된 것들)
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(oauth_google.router, prefix="/api/v1/auth/google", tags=["OAuth - Google"])
 app.include_router(image_generator.router, prefix="/api/v1/image-generator", tags=["Image Generator"])
-app.include_router(generated_images.router) # 생성된 이미지 라우터 등록
-app.include_router(llm.router) # LLM 라우터 등록
-#### persona 생성 관련 ####
-app.include_router(
-    workflow_prompts.router,
-    prefix="/api/v1/prompts/workflow",
-    tags=["workflow-prompts"]
-)
+app.include_router(generated_images.router, tags=["Generated Images"])
+app.include_router(llm.router, tags=["LLM"])
+app.include_router(workflow_prompts.router, prefix="/api/v1/prompts/workflow", tags=["Workflow Prompts"])
 
+# 시작 이벤트
+@app.on_event("startup")
+async def startup_event():
+    """애플리케이션 시작 시 실행되는 이벤트"""
+    from app.domains.personas.database import test_persona_db_connection
+    
+    # 외부 DB 연결 테스트
+    if test_persona_db_connection():
+        logger.info("✅ 외부 Persona DB 연결 성공")
+    else:
+        logger.warning("⚠️ 외부 Persona DB 연결 실패 - 기능이 제한될 수 있습니다")
 
-# 루트 엔드포인트 (기본 테스트용)
+# 루트 엔드포인트
 @app.get("/")
 async def read_root():
-    """
-    API 루트 경로. 간단한 환영 메시지를 반환합니다.
-    """
-    return {"message": "DP Management API에 오신 것을 환영합니다!"}
+    """API 루트 경로"""
+    return {
+        "message": "DP Management API에 오신 것을 환영합니다!",
+        "version": "2.0.0",
+        "architecture": "Domain-Driven Design"
+    }
 
-# 데이터베이스 연결 테스트 엔드포인트 (선택 사항)
+# 기본 DB 연결 테스트
 @app.get("/db-test")
 def test_db_connection(db: Session = Depends(get_db)):
-    """
-    데이터베이스 연결을 테스트하는 엔드포인트.
-    간단한 쿼리를 실행하여 연결 상태를 확인합니다.
-    """
+    """기본 데이터베이스 연결 테스트"""
     try:
-        # 간단한 쿼리 실행 (text() 함수 사용)
         result = db.execute(text("SELECT 1"))
-        result.fetchone() # 결과를 소비해야 할 수 있음
-        return {"status": "success", "message": "데이터베이스 연결 성공"}
+        result.fetchone()
+        return {"status": "success", "message": "기본 데이터베이스 연결 성공"}
     except Exception as e:
-        # 연결 실패 시 예외 발생
-        raise HTTPException(status_code=500, detail=f"데이터베이스 연결 실패: {e}")
+        raise HTTPException(status_code=500, detail=f"기본 데이터베이스 연결 실패: {e}")
+
+# 외부 Persona DB 연결 테스트
+@app.get("/persona-db-test")
+def test_persona_db_connection_endpoint():
+    """외부 페르소나 데이터베이스 연결 테스트"""
+    from app.domains.personas.database import test_persona_db_connection
+    
+    try:
+        if test_persona_db_connection():
+            return {
+                "status": "success", 
+                "message": "외부 Persona 데이터베이스 연결 성공",
+                "database": "43.203.24.147:13306/daepa_agent"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="외부 Persona 데이터베이스 연결 실패")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"외부 Persona 데이터베이스 연결 실패: {e}")

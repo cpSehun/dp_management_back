@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from .. import schemas, crud, models
-from ..database import get_db
-from ..security import get_current_active_user
+from app.security import get_current_active_user
+from app.domains.users.models import User  # User 모델만 도메인에서 import
+from app import schemas, crud  # 기존 schemas, crud 유지 (GeneratedImage 관련)
+
+from app.database import get_db
 
 router = APIRouter(
     prefix="/api/v1/images",
@@ -29,7 +31,7 @@ def save_generated_image_metadata(
     request: Request,
     image_in: schemas.GeneratedImageCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """생성된 이미지 메타데이터를 DB에 저장"""
     print(f"Backend: Generated image metadata save request received for URL: {request.url.path}")
@@ -88,7 +90,7 @@ async def read_all_generated_images(
 async def delete_generated_image(
     image_id: int, 
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """생성된 이미지 삭제 (최고관리자 전용)"""
     # 최고관리자 권한 체크
