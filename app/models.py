@@ -3,28 +3,9 @@ from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship, declarative_mixin, declared_attr
 from app.database import Base
 
-class User(Base):
-    """
-    사용자 정보를 저장하는 SQLAlchemy 모델.
-    """
-    __tablename__ = "users"
-
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    username = Column(String(50), unique=True, index=True, nullable=False)
-    email = Column(String(100), unique=True, index=True, nullable=False)
-    hashed_password = Column(String(255), nullable=False)
-    full_name = Column(String(100), nullable=True)
-    is_active = Column(Boolean, default=False)  # 기본값을 False로 변경
-    is_superuser = Column(Boolean, default=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    # 관계 설정 - 기존 이름 사용
-    generated_images = relationship("GeneratedImage", back_populates="user")
-    
-    # 새로 추가할 relationships
-    workflow_prompts = relationship("WorkflowPrompt", back_populates="created_by_user")
-    workflow_prompt_versions = relationship("WorkflowPromptVersion", back_populates="created_by_user")
+# User 클래스는 app/domains/users/models.py로 이동했으므로 여기서 제거
+# User 모델이 필요한 관계 설정을 위해 import
+from app.domains.users.models import User
 
 class GeneratedImage(Base):
     """
@@ -83,8 +64,3 @@ class WorkflowPromptVersion(Base):
     # 관계 설정
     prompt = relationship("WorkflowPrompt", back_populates="versions")
     created_by_user = relationship("User", back_populates="workflow_prompt_versions")
-
-# User 모델에 추가할 관계
-# class User(Base):에 추가:
-#     workflow_prompts = relationship("WorkflowPrompt", back_populates="created_by_user")
-#     workflow_prompt_versions = relationship("WorkflowPromptVersion", back_populates="created_by_user")

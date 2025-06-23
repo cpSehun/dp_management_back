@@ -1,9 +1,6 @@
-"""
-User 도메인 모델
-기존 app/models.py에서 User 관련 부분을 이동
-"""
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.database import Base
 
 class User(Base):
@@ -18,6 +15,11 @@ class User(Base):
     is_superuser = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # 관계 설정 추가 (다른 모델들과의 관계)
+    generated_images = relationship("GeneratedImage", back_populates="user")
+    workflow_prompts = relationship("WorkflowPrompt", back_populates="created_by_user")
+    workflow_prompt_versions = relationship("WorkflowPromptVersion", back_populates="created_by_user")
 
     def __repr__(self):
         return f"<User(id={self.id}, username='{self.username}', email='{self.email}')>"

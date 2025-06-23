@@ -1,6 +1,6 @@
 """
 보안 관련 함수들
-도메인 기반 모듈화에 맞게 수정된 버전
+도메인 기반 모듈화에 맞게 수정된 버전 - 순환 참조 해결
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -15,9 +15,7 @@ from pydantic import BaseModel
 # 패스워드 관련 함수는 별도 모듈에서 import (순환 참조 방지)
 from app.core.password import verify_password, get_password_hash
 
-# 도메인 기반 import로 변경
-from app.domains.users.models import User
-from app.domains.users import crud
+# 기본 database import만 사용
 from app import database
 
 load_dotenv()
@@ -54,9 +52,12 @@ def verify_token(token: str, credentials_exception):
         raise credentials_exception
     return token_data
 
-# 현재 사용자 가져오기 (도메인 기반 import 사용)
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)) -> User:
+# 현재 사용자 가져오기 (지연 import로 순환 참조 해결)
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(database.get_db)):
     """현재 인증된 사용자를 가져옵니다."""
+    # 지연 import로 순환 참조 해결
+    from app.domains.users import crud
+    
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -75,15 +76,15 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         raise credentials_exception
     return user
 
-# 활성 사용자만 허용 (User 모델 타입 변경)
-def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
+# 활성 사용자만 허용
+def get_current_active_user(current_user = Depends(get_current_user)):
     """현재 활성화된 사용자만 허용합니다."""
     if not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
 
-# 관리자 사용자만 허용 (User 모델 타입 변경)
-def get_current_active_superuser(current_user: User = Depends(get_current_active_user)) -> User:
+# 관리자 사용자만 허용
+def get_current_active_superuser(current_user = Depends(get_current_active_user)):
     """현재 활성화된 관리자 사용자만 허용합니다."""
     if not current_user.is_superuser:
         raise HTTPException(
