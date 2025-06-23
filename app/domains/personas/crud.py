@@ -21,8 +21,8 @@ def test_db_connection(db: Session) -> bool:
         logger.error(f"Database connection test failed: {e}")
         return False
 
-def get_personas(db: Session, skip: int = 0, limit: int = 20, search: Optional[str] = None) -> List[TPersona]:
-    """페르소나 목록 조회"""
+def get_personas(db: Session, skip: int = 0, limit: int = 1000, search: Optional[str] = None) -> List[TPersona]:
+    """페르소나 목록 조회 - 강화된 검색"""
     try:
         query = db.query(TPersona)
         
@@ -33,7 +33,10 @@ def get_personas(db: Session, skip: int = 0, limit: int = 20, search: Optional[s
                     TPersona.name.ilike(search_filter),
                     TPersona.id.ilike(search_filter),
                     TPersona.type.ilike(search_filter),
-                    TPersona.status.ilike(search_filter)
+                    TPersona.status.ilike(search_filter),
+                    TPersona.user_id.cast(db.String).ilike(search_filter),  # 🔥 사용자ID 검색 추가
+                    TPersona.model_id.ilike(search_filter),
+                    TPersona.summary.ilike(search_filter)
                 )
             )
         
@@ -44,7 +47,7 @@ def get_personas(db: Session, skip: int = 0, limit: int = 20, search: Optional[s
         return []
 
 def get_personas_count(db: Session, search: Optional[str] = None) -> int:
-    """페르소나 총 개수"""
+    """페르소나 총 개수 - 강화된 검색"""
     try:
         query = db.query(TPersona)
         
@@ -55,7 +58,10 @@ def get_personas_count(db: Session, search: Optional[str] = None) -> int:
                     TPersona.name.ilike(search_filter),
                     TPersona.id.ilike(search_filter),
                     TPersona.type.ilike(search_filter),
-                    TPersona.status.ilike(search_filter)
+                    TPersona.status.ilike(search_filter),
+                    TPersona.user_id.cast(db.String).ilike(search_filter),  # 🔥 사용자ID 검색 추가
+                    TPersona.model_id.ilike(search_filter),
+                    TPersona.summary.ilike(search_filter)
                 )
             )
         
