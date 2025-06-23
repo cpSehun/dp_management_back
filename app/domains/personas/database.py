@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # SQLAlchemy 연결 URL 생성
 PERSONA_SQLALCHEMY_DATABASE_URL = (
     f"mysql+pymysql://{settings.persona_db_user}:{settings.persona_db_password}"
-    f"@{settings.persona_db_host}:{settings.persona_db_port}/{settings.persona_db_database}"
+    f"@{settings.persona_db_host}:{settings.persona_db_port}/{settings.persona_db_schema}"
 )
 
 # SQLAlchemy 엔진 생성 (외부 DB용)

@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     persona_db_password: str = ""
     persona_db_host: str = "43.203.24.147"
     persona_db_port: int = 13306
-    persona_db_database: str = "daepa_agent"
+    persona_db_schema: str = ""
     
     # 보안 설정
     secret_key: str = "your-secret-key"
