@@ -17,10 +17,11 @@ logger = logging.getLogger(__name__)
 # 라우터 생성
 router = APIRouter()
 
-@router.get("/", response_model=List[Persona])
+# 슬래시 없는 버전과 있는 버전 모두 지원 (슬래시 없는 버전을 먼저 등록)
+@router.get("", response_model=List[Persona])
 async def get_persona_list(
     skip: int = Query(0, ge=0, description="건너뛸 레코드 수"),
-    limit: int = Query(20, ge=1, le=100, description="가져올 레코드 수"),
+    limit: int = Query(1000, ge=1, le=1000, description="가져올 레코드 수"),
     search: Optional[str] = Query(None, description="검색어 (이름, ID, 타입, 상태 등)"),
     db: Session = Depends(get_persona_db),
     current_user = Depends(get_current_active_user)
@@ -49,6 +50,7 @@ async def get_persona_list(
             detail="페르소나 목록을 가져오는 중 오류가 발생했습니다."
         )
 
+# @router.get("paginated", response_model=PersonaListResponse)
 @router.get("/paginated", response_model=PersonaListResponse)
 async def get_persona_paginated(
     page: int = Query(1, ge=1, description="페이지 번호"),
@@ -57,9 +59,7 @@ async def get_persona_paginated(
     db: Session = Depends(get_persona_db),
     current_user = Depends(get_current_active_user)
 ):
-    """
-    페이지네이션이 적용된 페르소나 목록 조회
-    """
+    """페이지네이션이 적용된 페르소나 목록 조회"""
     try:
         # 데이터베이스 연결 테스트
         if not test_persona_db_connection():
@@ -99,9 +99,7 @@ async def test_persona_db_connection_endpoint(
     db: Session = Depends(get_persona_db),
     current_user = Depends(get_current_active_user)
 ):
-    """
-    외부 데이터베이스 연결 테스트
-    """
+    """외부 데이터베이스 연결 테스트"""
     try:
         is_connected = crud.test_db_connection(db)
         if is_connected:

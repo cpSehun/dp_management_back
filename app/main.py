@@ -92,34 +92,17 @@ async def read_root():
     return {
         "message": "DP Management API에 오신 것을 환영합니다!",
         "version": "2.0.0",
-        "architecture": "Domain-Driven Design"
+        "domains": ["users", "personas"]
     }
 
-# 기본 DB 연결 테스트
-@app.get("/db-test")
-def test_db_connection(db: Session = Depends(get_db)):
-    """기본 데이터베이스 연결 테스트"""
+# 헬스체크 엔드포인트
+@app.get("/health")
+async def health_check(db: Session = Depends(get_db)):
+    """애플리케이션 상태 확인"""
     try:
-        result = db.execute(text("SELECT 1"))
-        result.fetchone()
-        return {"status": "success", "message": "기본 데이터베이스 연결 성공"}
+        # 기본 DB 연결 테스트
+        db.execute(text("SELECT 1"))
+        return {"status": "healthy", "database": "connected"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"기본 데이터베이스 연결 실패: {e}")
-
-# 외부 Persona DB 연결 테스트
-@app.get("/persona-db-test")
-def test_persona_db_connection_endpoint():
-    """외부 페르소나 데이터베이스 연결 테스트"""
-    from app.domains.personas.database import test_persona_db_connection
-    
-    try:
-        if test_persona_db_connection():
-            return {
-                "status": "success", 
-                "message": "외부 Persona 데이터베이스 연결 성공",
-                "database": "43.203.24.147:13306/daepa_agent"
-            }
-        else:
-            raise HTTPException(status_code=500, detail="외부 Persona 데이터베이스 연결 실패")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"외부 Persona 데이터베이스 연결 실패: {e}")
+        logger.error(f"Health check failed: {e}")
+        raise HTTPException(status_code=503, detail="Service unavailable")
