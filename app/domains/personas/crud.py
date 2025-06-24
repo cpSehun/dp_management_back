@@ -84,39 +84,72 @@ def get_max_user_id(db: Session) -> Optional[int]:
         return None
 
 def create_persona(db: Session, persona: PersonaCreate, created_by_user_id: int) -> Optional[TPersona]:
-    """새 페르소나 생성"""
+    """Raw SQL을 사용한 페르소나 생성 - properties NULL 보장"""
     try:
-        # TPersona 객체 생성
-        db_persona = TPersona(
-            id=persona.id,
-            type=persona.type,
-            name=persona.name,
-            user_id=persona.user_id,
-            status=persona.status,
-            model_id=persona.model_id,
-            tags=persona.tags,  # JSON 자동 변환
-            properties=persona.properties,  # JSON 자동 변환
-            summary=persona.summary,
-            llm_prompt=persona.llm_prompt,
-            chat_opening=persona.chat_opening,
-            background=persona.background
-        )
+        # user_id 처리 (None인 경우 최신 user_id + 1로 설정)
+        if persona.user_id is None:
+            max_user_id = db.query(func.max(TPersona.user_id)).scalar()
+            next_user_id = (max_user_id or 0) + 1
+        else:
+            next_user_id = persona.user_id
         
-        # 데이터베이스에 추가
-        db.add(db_persona)
+        # Raw SQL INSERT 쿼리 실행 - properties는 명시적으로 NULL
+        insert_sql = text("""
+            INSERT INTO t_persona (
+                id, type, name, user_id, status, model_id, 
+                tags, properties, summary, llm_prompt, chat_opening, background
+            ) VALUES (
+                :id, :type, :name, :user_id, :status, :model_id,
+                :tags, NULL, :summary, :llm_prompt, :chat_opening, :background
+            )
+        """)
+        
+        # 파라미터 준비
+        params = {
+            'id': persona.id,
+            'type': persona.type,
+            'name': persona.name,
+            'user_id': next_user_id,
+            'status': persona.status,
+            'model_id': persona.model_id,
+            'tags': json.dumps(persona.tags) if persona.tags else None,
+            # properties는 위 SQL에서 명시적으로 NULL로 설정
+            'summary': persona.summary,
+            'llm_prompt': persona.llm_prompt,
+            'chat_opening': persona.chat_opening,
+            'background': persona.background
+        }
+        
+        logger.info(f"Creating persona with Raw SQL - properties will be NULL")
+        
+        # Raw SQL 실행
+        result = db.execute(insert_sql, params)
         db.commit()
-        db.refresh(db_persona)
         
-        logger.info(f"Created persona: {db_persona.name} (seq={db_persona.seq}, user_id={db_persona.user_id})")
-        return db_persona
+        # 생성된 레코드 조회 (LAST_INSERT_ID 사용)
+        new_seq = result.lastrowid
+        created_persona = db.query(TPersona).filter(TPersona.seq == new_seq).first()
+        
+        if created_persona:
+            # 저장 후 실제 값 확인
+            check_sql = text("SELECT properties, CHAR_LENGTH(properties) as len, properties IS NULL as is_null FROM t_persona WHERE seq = :seq")
+            check_result = db.execute(check_sql, {"seq": new_seq}).fetchone()
+            
+            logger.info(f"Created persona with Raw SQL: {created_persona.name} (seq={created_persona.seq})")
+            logger.info(f"Properties check: value={check_result.properties}, length={check_result.len}, is_null={check_result.is_null}")
+            
+            return created_persona
+        else:
+            logger.error("Failed to retrieve created persona")
+            return None
         
     except SQLAlchemyError as e:
         db.rollback()
-        logger.error(f"Database error creating persona: {e}")
+        logger.error(f"Raw SQL persona creation error: {e}")
         return None
     except Exception as e:
         db.rollback()
-        logger.error(f"Unexpected error creating persona: {e}")
+        logger.error(f"Unexpected error in Raw SQL persona creation: {e}")
         return None
 
 def get_persona_by_seq(db: Session, persona_seq: int) -> Optional[TPersona]:
